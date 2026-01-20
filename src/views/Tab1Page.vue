@@ -23,7 +23,7 @@
         </ion-segment>
       </div>
 
-      <div v-if="viewMode === 'map'" class="map-wrapper">
+      <div v-if="viewMode === 'map'" class="map-wrapper" style="position: absolute; top: 60px; left: 0; right: 0; bottom: 0;">
         <div ref="mapElement" class="map"></div>
         <div class="map-controls">
           <ion-item lines="none">
@@ -424,11 +424,16 @@ onMounted(() => {
     shadowUrl: markerShadow,
   });
 
-  mapInstance = L.map(mapElement.value).setView([-18.8792, 47.5079], 13);
+  mapInstance = L.map(mapElement.value).setView([-18.8792, 47.5079], 15);
   try {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19,
     }).addTo(mapInstance);
+    // ensure Leaflet recalculates container size after render
+    setTimeout(() => {
+      mapInstance?.invalidateSize();
+    }, 300);
   } catch {
     renderError("Impossible de charger les tuiles de carte.");
   }
@@ -502,18 +507,24 @@ onBeforeUnmount(() => {
 }
 
 .map-wrapper {
-  position: relative;
-  height: 100%;
-  min-height: calc(100vh - 112px);
-}
-
-.map {
-  height: 100%;
+  /* position the map between the header and the tabbar using Ionic CSS variables */
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--ion-safe-area-top, 0px) + var(--ion-toolbar-height, 56px));
+  bottom: calc(var(--ion-tabbar-height, 56px) + var(--ion-safe-area-bottom, 0px));
   width: 100%;
 }
 
-.map-hint {
+.map {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map-hint {
+  position: absolute; 
   left: 12px;
   right: 12px;
   bottom: 12px;

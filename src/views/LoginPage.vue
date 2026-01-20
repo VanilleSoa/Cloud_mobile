@@ -117,7 +117,7 @@ const signUp = async () => {
     password.value = '';
     // Redirection vers les tabs après l'inscription
     setTimeout(() => {
-      router.push('/tabs/tab1');
+      router.replace('/tabs/tab1');
     }, 1000);
   } catch (error: any) {
     showMessage(`Erreur: ${error.message}`, 'danger');
@@ -144,7 +144,7 @@ const signIn = async () => {
     password.value = '';
     // Redirection vers les tabs après la connexion
     setTimeout(() => {
-      router.push('/tabs/tab1');
+      router.replace('/tabs/tab1');
     }, 1000);
   } catch (error: any) {
     showMessage(`Erreur: ${error.message}`, 'danger');

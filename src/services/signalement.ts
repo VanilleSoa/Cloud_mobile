@@ -51,12 +51,29 @@ export const submitSignalement = async (
   if (!auth.currentUser) {
     throw new Error("Authentification requise.");
   }
-  const docRef = await addDoc(collection(db, "signalements"), {
-    ...payload,
-    createdAt: serverTimestamp(),
-  });
+  
+  // Use the API backend instead of direct Firestore write
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  
+  try {
+    const response = await fetch(`${apiUrl}/api/signalements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-  return docRef.id;
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.id || data.documentId || 'unknown';
+  } catch (error) {
+    console.error('Error submitting signalement via API:', error);
+    throw error;
+  }
 };
 
 export const fetchMySignalements = async (

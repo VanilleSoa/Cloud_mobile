@@ -3,6 +3,7 @@ import { RouteRecordRaw } from "vue-router";
 import TabsPage from "../views/TabsPage.vue";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/Firebase/FirebaseConfig";
+import { Capacitor } from "@capacitor/core";
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -31,7 +32,7 @@ const routes: Array<RouteRecordRaw> = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(Capacitor.convertFileSrc(import.meta.env.BASE_URL || '/')),
   routes,
 });
 
@@ -45,17 +46,21 @@ const waitForAuthReady = () =>
 
 router.beforeEach(async (to) => {
   const isAuthRoute = to.path === "/login";
+  
+  // Attendre que l'état d'authentification soit prêt
+  await waitForAuthReady();
+  
   if (auth.currentUser) {
+    // Si l'utilisateur est connecté et essaie d'aller au login, rediriger vers tab1
     if (isAuthRoute) {
-      return "/tabs/tab1";
+      return { path: "/tabs/tab1", replace: true };
     }
     return true;
   }
 
-  await waitForAuthReady();
-
+  // Si la route nécessite l'authentification et l'utilisateur n'est pas connecté
   if (to.matched.some((record) => record.meta.requiresAuth)) {
-    return "/login";
+    return { path: "/login", replace: true };
   }
 
   return true;
