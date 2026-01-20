@@ -54,25 +54,61 @@ export const submitSignalement = async (
   
   // Use the API backend instead of direct Firestore write
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const fullUrl = `${apiUrl}/api/signalements`;
+  
+  console.log('[Signalement] API URL configurée:', apiUrl);
+  console.log('[Signalement] URL complète:', fullUrl);
+  console.log('[Signalement] Payload:', JSON.stringify(payload, null, 2));
   
   try {
-    const response = await fetch(`${apiUrl}/api/signalements`, {
+    console.log('[Signalement] Début de la requête fetch...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
+
+    console.log('[Signalement] Response status:', response.status);
+    console.log('[Signalement] Response ok:', response.ok);
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('[Signalement] Response error:', errorText);
+      throw new Error(`Erreur serveur (${response.status}): ${errorText || response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('[Signalement] Success response:', data);
     return data.id || data.documentId || 'unknown';
-  } catch (error) {
-    console.error('Error submitting signalement via API:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[Signalement] Erreur complète:', error);
+    console.error('[Signalement] Type erreur:', error?.name);
+    console.error('[Signalement] Message:', error?.message);
+    
+    // Messages d'erreur détaillés selon le type
+    if (error?.name === 'AbortError') {
+      throw new Error(`Timeout: Le serveur ${apiUrl} ne répond pas après 15s. Vérifiez que le backend tourne et que l'IP est correcte.`);
+    }
+    
+    if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+      throw new Error(`Erreur réseau: Impossible de joindre ${apiUrl}. Vérifiez: 1) Le serveur backend tourne 2) Votre téléphone est sur le même WiFi 3) L'IP ${apiUrl} est accessible`);
+    }
+    
+    if (error?.message?.includes('CORS')) {
+      throw new Error(`Erreur CORS: Le serveur ${apiUrl} bloque les requêtes. Vérifiez la config CORS du backend.`);
+    }
+    
+    throw new Error(`${error?.message || 'Erreur inconnue'} (URL: ${fullUrl})`);
   }
 };
 

@@ -135,7 +135,15 @@
           </div>
 
           <div v-if="message" class="message" :class="messageType">
-            <ion-text :color="messageType">{{ message }}</ion-text>
+            <ion-text :color="messageType" style="white-space: pre-wrap; word-break: break-word;">{{ message }}</ion-text>
+          </div>
+          
+          <div class="debug-info" style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 12px;">
+            <ion-text color="medium">
+              <strong>Debug:</strong><br/>
+              API: {{ apiUrlDebug }}<br/>
+              User: {{ auth.currentUser?.email || 'Non connecté' }}
+            </ion-text>
           </div>
         </ion-content>
       </ion-modal>
@@ -184,6 +192,9 @@ const mapElement = ref<HTMLElement | null>(null);
 const isModalOpen = ref(false);
 const viewMode = ref<"map" | "mine">("map");
 const statusFilter = ref<SignalementStatus | "all">("all");
+
+// Debug: Afficher l'URL de l'API configurée
+const apiUrlDebug = import.meta.env.VITE_API_URL || 'http://localhost:3000 (défaut)';
 
 let mapInstance: L.Map | null = null;
 let marker: L.Marker | null = null;

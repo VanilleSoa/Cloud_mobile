@@ -5,6 +5,8 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+console.log('[API] Base URL:', API_BASE_URL);
+
 export interface SignalementApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -14,6 +16,7 @@ export interface SignalementApiResponse<T = any> {
 
 export async function fetchAllSignalementsFromApi(): Promise<any[]> {
   try {
+    console.log('[API] Fetching all signalements from:', `${API_BASE_URL}/api/signalements`);
     const response = await fetch(`${API_BASE_URL}/api/signalements`, {
       method: 'GET',
       headers: {
@@ -33,7 +36,7 @@ export async function fetchAllSignalementsFromApi(): Promise<any[]> {
 
     return result.data || [];
   } catch (error) {
-    console.error('Erreur lors de la récupération des signalements:', error);
+    console.error('[API] Erreur lors de la récupération des signalements:', error);
     throw error;
   }
 }
