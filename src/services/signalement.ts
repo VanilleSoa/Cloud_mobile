@@ -89,9 +89,17 @@ export const submitSignalement = async (
     });
     return docRef.id || "unknown";
   } catch (error) {
-    console.error("Erreur lors de la création du signalement:", JSON.stringify(error));
+    console.error(
+      "Erreur lors de la création du signalement:",
+      JSON.stringify(error),
+    );
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(
+      `Erreur lors de la création du signalement: ${String(error)}`,
+    );
   }
-  return "unknown";
   // Use the API backend instead of direct Firestore write
   /* const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const fullUrl = `${apiUrl}/api/signalements`;
