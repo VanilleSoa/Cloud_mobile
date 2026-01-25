@@ -1,13 +1,18 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   query,
   serverTimestamp,
   where,
 } from "firebase/firestore";
 import { auth, db } from "@/Firebase/FirebaseConfig";
-import type { SignalementPayload, SignalementRecord } from "@/types/signalement";
+
+import type {
+  SignalementPayload,
+  SignalementRecord,
+} from "@/types/signalement";
 
 export type SignalementFormInput = {
   title: string;
@@ -28,7 +33,7 @@ const parseNumberOrNull = (value: string): number | null => {
 };
 
 export const prepareSignalementPayload = (
-  form: SignalementFormInput
+  form: SignalementFormInput,
 ): SignalementPayload => {
   const currentUser = auth.currentUser;
 
@@ -46,14 +51,49 @@ export const prepareSignalementPayload = (
 };
 
 export const submitSignalement = async (
-  payload: SignalementPayload
+  payload: SignalementPayload,
 ): Promise<string> => {
   if (!auth.currentUser) {
     throw new Error("Authentification requise.");
   }
-  
+  const {
+    title,
+    description,
+    surfaceM2,
+    budget,
+    latitude,
+    longitude,
+    status,
+    userId,
+    userEmail,
+  } = payload;
+
+  // Validation minimale
+  if (!title || !description) {
+    throw new Error("Titre et description requis");
+  }
+  try {
+    // Créer le document dans Firestore
+    const docRef = await addDoc(collection(db,"signalements"),{
+      title,
+      description,
+      surfaceM2: surfaceM2 || null,
+      budget: budget || null,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      status: status || "nouveau",
+      userId: userId || null,
+      userEmail: userEmail || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return docRef.id || "unknown";
+  } catch (error) {
+    console.error("Erreur lors de la création du signalement:", JSON.stringify(error));
+  }
+  return "unknown";
   // Use the API backend instead of direct Firestore write
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  /* const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const fullUrl = `${apiUrl}/api/signalements`;
   
   console.log('[Signalement] API URL configurée:', apiUrl);
@@ -109,14 +149,14 @@ export const submitSignalement = async (
     }
     
     throw new Error(`${error?.message || 'Erreur inconnue'} (URL: ${fullUrl})`);
-  }
+  } */
 };
 
 export const fetchMySignalements = async (
-  userId: string
+  userId: string,
 ): Promise<SignalementRecord[]> => {
   const snapshot = await getDocs(
-    query(collection(db, "signalements"), where("userId", "==", userId))
+    query(collection(db, "signalements"), where("userId", "==", userId)),
   );
 
   return snapshot.docs
