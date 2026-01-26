@@ -14,7 +14,7 @@
       </svg>
     </button>
     
-    <h1 class="app-header-title">VOIR MES SIGNALEMENTS</h1>
+    <h1 class="app-header-title">! CLIQUEZ POUR UN NOUVEAU SIGNALEMENT !</h1>
     
     <button class="app-header-btn app-header-btn--notification" @click="openNotifications">
       <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256">

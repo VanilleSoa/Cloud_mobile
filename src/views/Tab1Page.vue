@@ -179,7 +179,7 @@ const closeModal = () => {
 const handleFilterChange = (filter: SignalementStatus | 'all') => {
   statusFilter.value = filter;
   // Rafraîchir les marqueurs sur la carte selon le filtre
-  updateMarkers();
+  refreshSignalementMarkers();
 };
 
 const renderError = (text: string) => {
@@ -228,7 +228,9 @@ const submit = async () => {
     if (auth.currentUser) {
       loadMySignalements();
     }
-    loadAllSignalements();
+    await loadAllSignalements();
+    refreshSignalementMarkers();
+    closeModal();
   } catch (error: any) {
     message.value = `Erreur: ${error?.message ?? "envoi impossible"}`;
     messageType.value = "danger";

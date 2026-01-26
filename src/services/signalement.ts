@@ -6,6 +6,7 @@ import {
   query,
   serverTimestamp,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { auth, db } from "@/Firebase/FirebaseConfig";
 
@@ -73,8 +74,25 @@ export const submitSignalement = async (
     throw new Error("Titre et description requis");
   }
   try {
-    // Créer le document dans Firestore
+    // Générer un ID auto-incrémenté avec transaction atomique
+    const newId = await runTransaction(db, async (transaction) => {
+      const counterRef = doc(db, "counters", "signalements");
+      const counterDoc = await transaction.get(counterRef);
+      
+      let nextId = 1;
+      if (counterDoc.exists()) {
+        nextId = (counterDoc.data().lastId || 0) + 1;
+      }
+      
+      // Mettre à jour le compteur
+      transaction.set(counterRef, { lastId: nextId }, { merge: true });
+      
+      return nextId;
+    });
+
+    // Créer le document dans Firestore avec l'ID numérique
     const docRef = await addDoc(collection(db,"signalements"),{
+      id: newId,
       title,
       description,
       latitude: latitude || null,
