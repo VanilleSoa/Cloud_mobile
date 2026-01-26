@@ -13,6 +13,10 @@ const routes = [
     component: () => import("@/views/LoginPage.vue")
   },
   {
+    path: "/signalements",
+    component: () => import("@/views/SignalementListPage.vue")
+  },
+  {
     path: "/tabs/",
     component: TabsPage,
     meta: { requiresAuth: true },

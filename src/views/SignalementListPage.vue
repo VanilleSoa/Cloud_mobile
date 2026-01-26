@@ -14,6 +14,9 @@
             <ion-segment-button value="all">
               <ion-label>Tous</ion-label>
             </ion-segment-button>
+            <ion-segment-button value="mine">
+              <ion-label>Mes signalements</ion-label>
+            </ion-segment-button>
             <ion-segment-button value="nouveau">
               <ion-label>Nouveaux</ion-label>
             </ion-segment-button>
@@ -111,18 +114,30 @@ import { eyeOutline } from 'ionicons/icons';
 import AppFooter from '@/components/AppFooter.vue';
 import { fetchAllSignalements } from '@/services/signalement';
 import type { SignalementRecord, SignalementStatus } from '@/types/signalement';
+import { auth } from '@/Firebase/FirebaseConfig';
 
 const router = useRouter();
 const signalements = ref<SignalementRecord[]>([]);
 const loading = ref(false);
 const error = ref('');
-const statusFilter = ref<SignalementStatus | 'all'>('all');
+const statusFilter = ref<SignalementStatus | 'all' | 'mine'>('all');
 
 const filteredSignalements = computed(() => {
-  if (statusFilter.value === 'all') {
-    return signalements.value;
+  let filtered = signalements.value;
+
+  // Filtrer par mes signalements
+  if (statusFilter.value === 'mine') {
+    const currentUserId = auth.currentUser?.uid;
+    if (!currentUserId) {
+      return [];
+    }
+    filtered = filtered.filter((item) => item.userId === currentUserId);
+  } else if (statusFilter.value !== 'all') {
+    // Filtrer par statut
+    filtered = filtered.filter((item) => item.status === statusFilter.value);
   }
-  return signalements.value.filter((item) => item.status === statusFilter.value);
+
+  return filtered;
 });
 
 const loadSignalements = async () => {
@@ -194,16 +209,21 @@ onMounted(() => {
   background: white;
   border-radius: 12px;
   padding: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 ion-segment {
-  --background: #f5f5f5;
+  --background: #e0e0e0;
 }
 
 ion-segment-button {
-  font-size: 12px;
-  --indicator-color: var(--ion-color-primary);
-  --color-checked: var(--ion-color-primary);
+  font-size: 13px;
+  font-weight: 500;
+  --indicator-color: #FFC107;
+  --indicator-height: 3px;
+  --color: #666;
+  --color-checked: #000;
+  min-height: 40px;
 }
 
 .loading-state,
@@ -296,11 +316,17 @@ ion-badge {
 .view-button {
   --padding-start: 8px;
   --padding-end: 8px;
+  --color: #FFC107;;
   min-width: 48px;
   height: 48px;
 }
 
 .view-button ion-icon {
   font-size: 24px;
+  color: #FFC107;
+}
+
+.view-button:hover {
+  --background: rgba(255, 193, 7, 0.431);
 }
 </style>

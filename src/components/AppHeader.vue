@@ -37,6 +37,12 @@ const openFilters = async () => {
         }
       },
       {
+        text: 'Mes signalements',
+        handler: () => {
+          emit('filter-change', 'mine');
+        }
+      },
+      {
         text: 'Nouveau',
         handler: () => {
           emit('filter-change', 'nouveau');
