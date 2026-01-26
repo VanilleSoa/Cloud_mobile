@@ -10,23 +10,16 @@
       <div class="list-container">
         <!-- Filtre par statut -->
         <div class="filter-section">
-          <ion-segment v-model="statusFilter" @ionChange="handleFilterChange">
-            <ion-segment-button value="all">
-              <ion-label>Tous</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="mine">
-              <ion-label>Mes signalements</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="nouveau">
-              <ion-label>Nouveaux</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="en_cours">
-              <ion-label>En cours</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="termine">
-              <ion-label>Terminés</ion-label>
-            </ion-segment-button>
-          </ion-segment>
+          <ion-item lines="none">
+            <ion-label>Filtrer par :</ion-label>
+            <ion-select v-model="statusFilter" interface="action-sheet" placeholder="Sélectionner">
+              <ion-select-option value="all">Tous les signalements</ion-select-option>
+              <ion-select-option value="mine">Mes signalements</ion-select-option>
+              <ion-select-option value="nouveau">Nouveaux</ion-select-option>
+              <ion-select-option value="en_cours">En cours</ion-select-option>
+              <ion-select-option value="termine">Terminés</ion-select-option>
+            </ion-select>
+          </ion-item>
         </div>
 
         <!-- Loading state -->
@@ -105,10 +98,10 @@ import {
   IonButton,
   IonIcon,
   IonSpinner,
-  IonSegment,
-  IonSegmentButton,
   IonLabel,
   IonBadge,
+  IonSelect,
+  IonSelectOption,
 } from '@ionic/vue';
 import { eyeOutline } from 'ionicons/icons';
 import AppFooter from '@/components/AppFooter.vue';
@@ -208,22 +201,28 @@ onMounted(() => {
   margin-bottom: 16px;
   background: white;
   border-radius: 12px;
-  padding: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-ion-segment {
-  --background: #e0e0e0;
+.filter-section ion-item {
+  --background: white;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --border-radius: 12px;
+  --min-height: 56px;
 }
 
-ion-segment-button {
-  font-size: 13px;
+.filter-section ion-label {
+  font-weight: 600;
+  color: #000;
+  font-size: 14px;
+}
+
+.filter-section ion-select {
+  --padding-start: 8px;
   font-weight: 500;
-  --indicator-color: #FFC107;
-  --indicator-height: 3px;
-  --color: #666;
-  --color-checked: #000;
-  min-height: 40px;
+  color: #FFC107;
+  max-width: 100%;
 }
 
 .loading-state,
