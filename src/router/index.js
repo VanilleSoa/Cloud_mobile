@@ -14,7 +14,13 @@ const routes = [
   },
   {
     path: "/signalements",
-    component: () => import("@/views/SignalementListPage.vue")
+    component: () => import("@/views/SignalementListPage.vue"),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: "/avancement",
+    component: () => import("@/views/AvancementPage.vue"),
+    meta: { requiresAuth: true }
   },
   {
     path: "/tabs/",

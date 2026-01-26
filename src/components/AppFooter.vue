@@ -1,14 +1,14 @@
 <template>
   <div class="app-footer">
     <nav class="menu-bar">
-      <a href="/tabs/tab1" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/tabs/tab1') }">
+      <button @click="navigateTo('/tabs/tab1')" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/tabs/tab1') }">
         <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256">
           <rect width="256" height="256" fill="none"></rect>
           <path d="M213.3815,109.61945,133.376,36.88436a8,8,0,0,0-10.76339.00036l-79.9945,72.73477A8,8,0,0,0,40,115.53855V208a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V115.53887A8,8,0,0,0,213.3815,109.61945Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></path>
         </svg>
         <span class="menu-bar-item-text">Home</span>
-      </a>
-      <a href="/signalements" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/signalements') }">
+      </button>
+      <button @click="navigateTo('/signalements')" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/signalements') }">
         <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256">
           <rect width="256" height="256" fill="none"></rect>
           <rect x="32" y="48" width="192" height="160" rx="8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></rect>
@@ -16,7 +16,18 @@
           <line x1="88" y1="152" x2="120" y2="152" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
         </svg>
         <span class="menu-bar-item-text">Voir</span>
-      </a>
+      </button>
+      <button @click="navigateTo('/avancement')" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/avancement') }">
+        <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256">
+          <rect width="256" height="256" fill="none"></rect>
+          <polyline points="224 128 224 208 48 208 48 128" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></polyline>
+          <line x1="112" y1="168" x2="144" y2="168" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
+          <polyline points="96 128 96 48 160 48 160 128" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></polyline>
+          <line x1="136" y1="88" x2="120" y2="88" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
+          <line x1="136" y1="120" x2="120" y2="120" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></line>
+        </svg>
+        <span class="menu-bar-item-text">Avancement</span>
+      </button>
       <button @click="handleLogout" class="menu-bar-item menu-bar-item--logout">
         <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256">
           <rect width="256" height="256" fill="none"></rect>
@@ -40,6 +51,10 @@ const router = useRouter();
 
 const isActive = (path: string) => {
   return route.path === path;
+};
+
+const navigateTo = (path: string) => {
+  router.push(path);
 };
 
 const handleLogout = async () => {
