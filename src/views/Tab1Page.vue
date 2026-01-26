@@ -82,6 +82,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import {
   IonPage,
   IonHeader,
@@ -127,10 +128,11 @@ import {
 import type { SignalementFormInput } from "@/services/signalement";
 import type { SignalementRecord, SignalementStatus } from "@/types/signalement";
 
+const route = useRoute();
 const mapElement = ref<HTMLElement | null>(null);
 const isModalOpen = ref(false);
 const viewMode = ref<"map" | "mine">("map");
-const statusFilter = ref<SignalementStatus | "all">("all");
+const statusFilter = ref<SignalementStatus | "all" | "mine">("all");
 
 // Debug: Afficher l'URL de l'API configurée
 const apiUrlDebug = import.meta.env.VITE_API_URL || 'http://localhost:3000 (défaut)';
@@ -166,17 +168,28 @@ const filteredMySignalements = computed(() => {
 });
 
 const filteredAllSignalements = computed(() => {
-  if (statusFilter.value === "all") {
-    return allSignalements.value;
+  let filtered = allSignalements.value;
+
+  // Filtrer par mes signalements
+  if (statusFilter.value === 'mine') {
+    const currentUserId = auth.currentUser?.uid;
+    if (!currentUserId) {
+      return [];
+    }
+    filtered = filtered.filter((item) => item.userId === currentUserId);
+  } else if (statusFilter.value !== 'all') {
+    // Filtrer par statut
+    filtered = filtered.filter((item) => item.status === statusFilter.value);
   }
-  return allSignalements.value.filter((item) => item.status === statusFilter.value);
+
+  return filtered;
 });
 
 const closeModal = () => {
   isModalOpen.value = false;
 };
 
-const handleFilterChange = (filter: SignalementStatus | 'all') => {
+const handleFilterChange = (filter: SignalementStatus | 'all' | 'mine') => {
   statusFilter.value = filter;
   // Rafraîchir les marqueurs sur la carte selon le filtre
   refreshSignalementMarkers();
@@ -396,6 +409,38 @@ onMounted(() => {
 
   loadAllSignalements().then(() => {
     refreshSignalementMarkers();
+    
+    // Vérifier si on a des paramètres de navigation (lat, lng, zoom)
+    const lat = route.query.lat as string;
+    const lng = route.query.lng as string;
+    const zoom = route.query.zoom as string;
+    
+    if (lat && lng && mapInstance) {
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lng);
+      const zoomLevel = zoom ? parseInt(zoom) : 18;
+      
+      if (!isNaN(latitude) && !isNaN(longitude)) {
+        // Centrer la carte sur le signalement
+        mapInstance.setView([latitude, longitude], zoomLevel);
+        
+        // Ajouter un marqueur temporaire pour mettre en évidence
+        const highlightMarker = L.marker([latitude, longitude], {
+          icon: L.icon({
+            iconUrl: markerIcon,
+            iconRetinaUrl: markerIcon2x,
+            shadowUrl: markerShadow,
+            iconSize: [35, 51],
+            iconAnchor: [17, 51],
+          })
+        }).addTo(mapInstance);
+        
+        // Ouvrir le popup du marqueur s'il existe
+        setTimeout(() => {
+          highlightMarker.openPopup();
+        }, 500);
+      }
+    }
   });
 
   if (auth.currentUser) {
