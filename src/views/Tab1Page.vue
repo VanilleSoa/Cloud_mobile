@@ -12,6 +12,32 @@
         </ion-toolbar>
       </ion-header>
 
+      <div class="hero-panel">
+        <p class="section-heading">Signalement</p>
+        <h2>Cartographie communautaire en live</h2>
+        <p>
+          Activez vos signalements et suivez ceux des riverains en un clin d'œil.
+          Touchez la carte pour ajouter un point ou consultez votre historique.
+        </p>
+        <div class="quick-action-grid">
+          <ion-button expand="block" color="primary" @click="startNewSignalement">
+            Ajouter un signalement
+          </ion-button>
+          <ion-button expand="block" fill="outline" color="light" @click="switchToMine">
+            Mes signalements
+          </ion-button>
+        </div>
+      </div>
+
+      <div class="idea-panel glass-card">
+        <div class="section-heading">Idées utiles</div>
+        <ul>
+          <li><strong>Filtre express : </strong>concentrez-vous sur les statuts prioritaires en filtrant rapidement depuis la sélection.</li>
+          <li><strong>Mode "map" : </strong>déposez un signalement en touchant la carte et validez directement la latitude/longitude.</li>
+          <li><strong>Suivi perso : </strong>rafraîchissez vos signalements pour voir les mises à jour et budgets renseignés.</li>
+        </ul>
+      </div>
+
       <div class="segment-wrapper">
         <ion-segment v-model="viewMode" value="map">
           <ion-segment-button value="map">
@@ -23,8 +49,10 @@
         </ion-segment>
       </div>
 
-      <div v-if="viewMode === 'map'" class="map-wrapper" style="position: absolute; top: 60px; left: 0; right: 0; bottom: 0;">
-        <div ref="mapElement" class="map"></div>
+      <div v-if="viewMode === 'map'" class="map-section">
+        <div class="map-wrapper">
+          <div ref="mapElement" class="map"></div>
+        </div>
         <div class="map-controls">
           <ion-item lines="none">
             <ion-label>Statut</ion-label>
@@ -52,15 +80,17 @@
           </ion-button>
         </div>
 
+        <div class="section-heading" style="margin: 0 12px 12px;">Mes signalements récents</div>
+
         <ion-list v-if="filteredMySignalements.length">
           <ion-item v-for="item in filteredMySignalements" :key="item.id">
             <ion-label>
               <h2>{{ item.title }}</h2>
               <p>{{ item.description }}</p>
               <p v-if="item.createdAt">Le {{ formatDate(item.createdAt) }}</p>
-              <p>Statut: {{ item.status }}</p>
             </ion-label>
             <ion-note slot="end">
+              <ion-badge :color="statusColor(item.status)" class="status-badge">{{ item.status }}</ion-badge>
               <div v-if="item.surfaceM2">Surface: {{ item.surfaceM2 }} m2</div>
               <div v-if="item.budget">Budget: {{ item.budget }} MGA</div>
             </ion-note>
@@ -173,6 +203,7 @@ import {
   IonNote,
   IonSelect,
   IonSelectOption,
+  IonBadge,
 } from "@ionic/vue";
 import L from "leaflet";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -253,6 +284,18 @@ const resetForm = () => {
   };
 };
 
+const startNewSignalement = () => {
+  resetForm();
+  message.value = "";
+  messageType.value = "";
+  isModalOpen.value = true;
+};
+
+const switchToMine = () => {
+  viewMode.value = "mine";
+  loadMySignalements();
+};
+
 const submit = async () => {
   if (!auth.currentUser) {
     message.value = "Vous devez etre connecte pour envoyer un signalement.";
@@ -297,6 +340,19 @@ const formatDate = (date: Date) => {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+};
+
+const statusColor = (status: SignalementStatus) => {
+  switch (status) {
+    case "nouveau":
+      return "warning";
+    case "en_cours":
+      return "primary";
+    case "termine":
+      return "success";
+    default:
+      return "medium";
+  }
 };
 
 const loadMySignalements = async () => {
@@ -517,14 +573,24 @@ onBeforeUnmount(() => {
   background-color: rgba(235, 68, 90, 0.1);
 }
 
+.segment-wrapper {
+  padding: 8px 12px 0;
+}
+
+.list-wrapper {
+  padding: 0 12px 24px;
+}
+
+.map-section {
+  margin: 0 12px 24px;
+}
+
 .map-wrapper {
-  /* position the map between the header and the tabbar using Ionic CSS variables */
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(var(--ion-safe-area-top, 0px) + var(--ion-toolbar-height, 56px));
-  bottom: calc(var(--ion-tabbar-height, 56px) + var(--ion-safe-area-bottom, 0px));
-  width: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 360px;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
 .map {
@@ -535,14 +601,16 @@ onBeforeUnmount(() => {
 }
 
 .map-hint {
-  position: absolute; 
+  position: absolute;
   left: 12px;
   right: 12px;
   bottom: 12px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  background: rgba(2, 6, 12, 0.85);
+  color: #f8fafc;
+  font-size: 0.9rem;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
 }
 
 .map-controls {
@@ -550,22 +618,31 @@ onBeforeUnmount(() => {
   left: 12px;
   right: 12px;
   top: 12px;
-  padding: 8px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(5, 11, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   z-index: 1000;
 }
 
-.segment-wrapper {
-  padding: 8px 12px 0;
+.idea-panel ul {
+  padding-left: 1rem;
+  margin: 10px 0 0;
+  line-height: 1.5;
+  font-size: 0.95rem;
 }
 
-.list-wrapper {
-  padding: 0 12px 24px;
+.idea-panel li + li {
+  margin-top: 8px;
+}
+
+.status-badge {
+  margin-bottom: 6px;
+  font-size: 0.75rem;
 }
 
 .empty-state {
