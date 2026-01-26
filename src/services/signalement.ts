@@ -77,8 +77,6 @@ export const submitSignalement = async (
     const docRef = await addDoc(collection(db,"signalements"),{
       title,
       description,
-      surfaceM2: surfaceM2 || null,
-      budget: budget || null,
       latitude: latitude || null,
       longitude: longitude || null,
       status: status || "nouveau",

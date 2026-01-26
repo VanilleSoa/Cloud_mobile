@@ -15,6 +15,21 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("@/views/LoginPage.vue"),
   },
   {
+    path: "/search",
+    component: () => import("@/views/SearchPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/cart",
+    component: () => import("@/views/CartPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/profile",
+    component: () => import("@/views/ProfilePage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/tabs/",
     component: TabsPage,
     meta: { requiresAuth: true },
