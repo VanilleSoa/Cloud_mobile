@@ -8,7 +8,7 @@
         </svg>
         <span class="menu-bar-item-text">Home</span>
       </a>
-      <a href="/tabs/tab1" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/tabs/tab1') }">
+      <a href="/signalements" class="menu-bar-item" :class="{ 'menu-bar-item--active': isActive('/signalements') }">
         <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256">
           <rect width="256" height="256" fill="none"></rect>
           <rect x="32" y="48" width="192" height="160" rx="8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"></rect>

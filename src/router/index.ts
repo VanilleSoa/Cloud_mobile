@@ -30,6 +30,11 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/signalements",
+    component: () => import("@/views/SignalementListPage.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/tabs/",
     component: TabsPage,
     meta: { requiresAuth: true },
@@ -50,6 +55,7 @@ const router = createRouter({
   history: createWebHistory(Capacitor.convertFileSrc(import.meta.env.BASE_URL || '/')),
   routes,
 });
+
 
 const waitForAuthReady = () =>
   new Promise((resolve) => {
