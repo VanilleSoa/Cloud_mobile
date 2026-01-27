@@ -19,8 +19,12 @@
         </ion-header>
         <ion-content class="ion-padding">
           <ion-item>
-            <ion-label position="stacked">Titre</ion-label>
-            <ion-input v-model="form.title" placeholder="Nid de poule, route abimee..." />
+            <ion-label position="stacked">Type de signalement</ion-label>
+            <ion-select v-model="form.title" placeholder="Sélectionnez un type" interface="action-sheet">
+              <ion-select-option v-for="type in typeSignalements" :key="type.id" :value="type.libelle">
+                {{ type.libelle }}
+              </ion-select-option>
+            </ion-select>
           </ion-item>
 
           <ion-item>
@@ -124,8 +128,9 @@ import {
   fetchMySignalements,
   prepareSignalementPayload,
   submitSignalement,
+  fetchTypeSignalements,
 } from "@/services/signalement";
-import type { SignalementFormInput } from "@/services/signalement";
+import type { SignalementFormInput, TypeSignalement } from "@/services/signalement";
 import type { SignalementRecord, SignalementStatus } from "@/types/signalement";
 
 const route = useRoute();
@@ -159,6 +164,7 @@ const allSignalements = ref<SignalementRecord[]>([]);
 const loadingList = ref(false);
 const listMessage = ref("Aucun signalement pour le moment.");
 const loadingAll = ref(false);
+const typeSignalements = ref<TypeSignalement[]>([]);
 
 const filteredMySignalements = computed(() => {
   if (statusFilter.value === "all") {
@@ -291,6 +297,15 @@ const loadAllSignalements = async () => {
     messageType.value = "danger";
   } finally {
     loadingAll.value = false;
+  }
+};
+
+const loadTypeSignalements = async () => {
+  try {
+    const types = await fetchTypeSignalements();
+    typeSignalements.value = types;
+  } catch (error: any) {
+    console.error("Erreur chargement types signalements:", error);
   }
 };
 
@@ -448,6 +463,9 @@ onMounted(() => {
       refreshSignalementMarkers();
     });
   }
+  
+  // Charger les types de signalements
+  loadTypeSignalements();
 });
 
 watch(

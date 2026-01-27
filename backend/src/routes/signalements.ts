@@ -253,4 +253,35 @@ router.get('/status/:status', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/type-signalements
+ * Récupère tous les types de signalements
+ */
+router.get('/types', async (req: Request, res: Response) => {
+  try {
+    const snapshot = await db.collection('type_signalements').get();
+    const types: Array<{id: string, libelle: string}> = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      types.push({
+        id: doc.id,
+        libelle: data.libelle || '',
+      });
+    });
+
+    res.json({
+      success: true,
+      data: types,
+      message: `${types.length} types de signalements trouvés`,
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des types de signalements:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Impossible de récupérer les types de signalements',
+    });
+  }
+});
+
 export default router;

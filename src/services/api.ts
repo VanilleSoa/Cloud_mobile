@@ -118,3 +118,29 @@ export async function fetchSignalementsByStatus(status: string): Promise<any[]> 
     throw error;
   }
 }
+
+export async function fetchTypeSignalements(): Promise<Array<{id: string, libelle: string}>> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/signalements/types`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur API: ${response.statusText}`);
+    }
+
+    const result: SignalementApiResponse = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Erreur lors de la récupération des types de signalements');
+    }
+
+    return result.data || [];
+  } catch (error) {
+    console.error('Erreur lors de la récupération des types de signalements:', error);
+    throw error;
+  }
+}

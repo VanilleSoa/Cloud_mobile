@@ -223,3 +223,20 @@ export const fetchAllSignalements = async (): Promise<SignalementRecord[]> => {
       return timeB - timeA;
     });
 };
+
+export type TypeSignalement = {
+  id: string;
+  libelle: string;
+};
+
+export const fetchTypeSignalements = async (): Promise<TypeSignalement[]> => {
+  const snapshot = await getDocs(collection(db, "type_signalements"));
+  
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      libelle: data.libelle || '',
+    };
+  });
+};
