@@ -7,7 +7,38 @@ import {
   serverTimestamp,
   where,
   runTransaction,
+  onSnapshot,
+  Query,
+  QuerySnapshot,
+  DocumentData,
 } from "firebase/firestore";
+
+// Écouteur temps réel pour les signalements d'un utilisateur
+export function listenMySignalementsStatus(_userId: string, onChange: (signalements: SignalementRecord[], changes: {id: string, oldStatus: string, newStatus: string}[]) => void) {
+  // lastStatuses doit persister entre les appels du callback
+  const lastStatuses: Record<string, string> = {};
+  let initialized = false;
+  const q = query(collection(db, "signalements")); // plus de filtre userId
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const signalements: SignalementRecord[] = snapshot.docs.map((doc) => {
+      const data = doc.data() as SignalementPayload & { createdAt?: { toDate?: () => Date } };
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() ?? null,
+      };
+    });
+    const changes: {id: string, oldStatus: string, newStatus: string}[] = [];
+    for (const s of signalements) {
+      if (initialized && lastStatuses[s.id] && lastStatuses[s.id] !== s.status) {
+        changes.push({id: s.id, oldStatus: lastStatuses[s.id], newStatus: s.status});
+      }
+      lastStatuses[s.id] = s.status;
+    }
+    initialized = true;
+    onChange(signalements, changes);
+  });
+}
 import { auth, db } from "@/Firebase/FirebaseConfig";
 
 import type {

@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <AppHeader @filter-change="handleFilterChange" />
+    <AppHeader ref="appHeaderRef" @filter-change="handleFilterChange" @refresh-signalements="refreshAllSignalements" />
     
     <ion-content :fullscreen="true" class="content-with-footer">
       <!-- Afficher uniquement la carte, pas de segment -->
@@ -77,6 +77,17 @@
     </ion-content>
     
     <AppFooter />
+  import { getCurrentInstance } from 'vue';
+  const appHeaderRef = ref();
+
+  function syncNotificationsFromHome() {
+    // Appelle la méthode du composant AppHeader
+    if (appHeaderRef.value && typeof appHeaderRef.value.syncNotifications === 'function') {
+      appHeaderRef.value.syncNotifications();
+    } else if (appHeaderRef.value && appHeaderRef.value.$.exposed && typeof appHeaderRef.value.$.exposed.syncNotifications === 'function') {
+      appHeaderRef.value.$.exposed.syncNotifications();
+    }
+  }
   </ion-page>
 </template>
 
@@ -192,6 +203,12 @@ const closeModal = () => {
 const handleFilterChange = (filter: SignalementStatus | 'all' | 'mine') => {
   statusFilter.value = filter;
   // Rafraîchir les marqueurs sur la carte selon le filtre
+  refreshSignalementMarkers();
+};
+
+const refreshAllSignalements = async () => {
+  await loadAllSignalements();
+  await loadMySignalements();
   refreshSignalementMarkers();
 };
 
