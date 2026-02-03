@@ -24,10 +24,7 @@ export async function logLoginAttempt(email: string, success: boolean): Promise<
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        email,
-        password: ''
-      })
+      body: JSON.stringify({ email })
     });
 
     if (!response.ok) {
