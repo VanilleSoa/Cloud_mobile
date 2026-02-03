@@ -1,13 +1,50 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   query,
   serverTimestamp,
   where,
+  runTransaction,
+  onSnapshot,
+  Query,
+  QuerySnapshot,
+  DocumentData,
 } from "firebase/firestore";
+
+// Écouteur temps réel pour les signalements d'un utilisateur
+export function listenMySignalementsStatus(_userId: string, onChange: (signalements: SignalementRecord[], changes: {id: string, oldStatus: string, newStatus: string}[]) => void) {
+  // lastStatuses doit persister entre les appels du callback
+  const lastStatuses: Record<string, string> = {};
+  let initialized = false;
+  const q = query(collection(db, "signalements")); // plus de filtre userId
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const signalements: SignalementRecord[] = snapshot.docs.map((doc) => {
+      const data = doc.data() as SignalementPayload & { createdAt?: { toDate?: () => Date } };
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() ?? null,
+      };
+    });
+    const changes: {id: string, oldStatus: string, newStatus: string}[] = [];
+    for (const s of signalements) {
+      if (initialized && lastStatuses[s.id] && lastStatuses[s.id] !== s.status) {
+        changes.push({id: s.id, oldStatus: lastStatuses[s.id], newStatus: s.status});
+      }
+      lastStatuses[s.id] = s.status;
+    }
+    initialized = true;
+    onChange(signalements, changes);
+  });
+}
 import { auth, db } from "@/Firebase/FirebaseConfig";
-import type { SignalementPayload, SignalementRecord } from "@/types/signalement";
+
+import type {
+  SignalementPayload,
+  SignalementRecord,
+} from "@/types/signalement";
 
 export type SignalementFormInput = {
   title: string;
@@ -28,7 +65,7 @@ const parseNumberOrNull = (value: string): number | null => {
 };
 
 export const prepareSignalementPayload = (
-  form: SignalementFormInput
+  form: SignalementFormInput,
 ): SignalementPayload => {
   const currentUser = auth.currentUser;
 
@@ -46,14 +83,72 @@ export const prepareSignalementPayload = (
 };
 
 export const submitSignalement = async (
-  payload: SignalementPayload
+  payload: SignalementPayload,
 ): Promise<string> => {
   if (!auth.currentUser) {
     throw new Error("Authentification requise.");
   }
-  
+  const {
+    title,
+    description,
+    surfaceM2,
+    budget,
+    latitude,
+    longitude,
+    status,
+    userId,
+    userEmail,
+  } = payload;
+
+  // Validation minimale
+  if (!title || !description) {
+    throw new Error("Titre et description requis");
+  }
+  try {
+    // Générer un ID auto-incrémenté avec transaction atomique
+    const newId = await runTransaction(db, async (transaction) => {
+      const counterRef = doc(db, "counters", "signalements");
+      const counterDoc = await transaction.get(counterRef);
+      
+      let nextId = 1;
+      if (counterDoc.exists()) {
+        nextId = (counterDoc.data().lastId || 0) + 1;
+      }
+      
+      // Mettre à jour le compteur
+      transaction.set(counterRef, { lastId: nextId }, { merge: true });
+      
+      return nextId;
+    });
+
+    // Créer le document dans Firestore avec l'ID numérique
+    const docRef = await addDoc(collection(db,"signalements"),{
+      id: newId,
+      title,
+      description,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      status: status || "nouveau",
+      userId: userId || null,
+      userEmail: userEmail || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return docRef.id || "unknown";
+  } catch (error) {
+    console.error(
+      "Erreur lors de la création du signalement:",
+      JSON.stringify(error),
+    );
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(
+      `Erreur lors de la création du signalement: ${String(error)}`,
+    );
+  }
   // Use the API backend instead of direct Firestore write
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  /* const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const fullUrl = `${apiUrl}/api/signalements`;
   
   console.log('[Signalement] API URL configurée:', apiUrl);
@@ -109,14 +204,14 @@ export const submitSignalement = async (
     }
     
     throw new Error(`${error?.message || 'Erreur inconnue'} (URL: ${fullUrl})`);
-  }
+  } */
 };
 
 export const fetchMySignalements = async (
-  userId: string
+  userId: string,
 ): Promise<SignalementRecord[]> => {
   const snapshot = await getDocs(
-    query(collection(db, "signalements"), where("userId", "==", userId))
+    query(collection(db, "signalements"), where("userId", "==", userId)),
   );
 
   return snapshot.docs

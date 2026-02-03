@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import signalementRoutes from './routes/signalements.js';
+import authRouter from "./routes/auth.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/signalements', signalementRoutes);
+app.use("/api/auth", authRouter);
+
 
 // Health check
 app.get('/health', (req, res) => {

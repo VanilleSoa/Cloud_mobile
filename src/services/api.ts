@@ -14,6 +14,27 @@ export interface SignalementApiResponse<T = any> {
   message?: string;
 }
 
+export async function logLoginAttempt(email: string, success: boolean): Promise<void> {
+  try {
+    const endpoint = success ? '/api/auth/login-success' : '/api/auth/failed-attempt';
+    console.log(`[API] Logging ${success ? 'successful' : 'failed'} login attempt for:`, email);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email })
+    });
+
+    if (!response.ok) {
+      console.error(`[API] Failed to log login attempt: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('[API] Error logging login attempt:', error);
+  }
+}
+
 export async function fetchAllSignalementsFromApi(): Promise<any[]> {
   try {
     console.log('[API] Fetching all signalements from:', `${API_BASE_URL}/api/signalements`);
