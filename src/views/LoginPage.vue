@@ -107,6 +107,7 @@ import {
   onAuthStateChanged,
   User
 } from 'firebase/auth';
+import { logLoginAttempt } from '@/services/api';
 
 const router = useRouter();
 
@@ -162,6 +163,10 @@ const signIn = async () => {
   
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
+    
+    // Log successful login attempt
+    await logLoginAttempt(email.value, true);
+    
     showMessage(`Connexion réussie! Redirection...`, 'success');
     email.value = '';
     password.value = '';
@@ -170,6 +175,9 @@ const signIn = async () => {
       router.replace('/tabs/tab1');
     }, 1000);
   } catch (error: any) {
+    // Log failed login attempt
+    await logLoginAttempt(email.value, false);
+    
     showMessage(`Erreur: ${error.message}`, 'danger');
   } finally {
     loading.value = false;
