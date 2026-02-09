@@ -22,6 +22,8 @@
     "@capacitor/local-notifications": "^7.0.4",
     "@capacitor/preferences": "^7.0.2",
     "@capacitor/status-bar": "7.0.3",
+    "@cloudinary/url-gen": "^1.22.0",
+    "@cloudinary/vue": "^1.13.3",
     "@ionic/pwa-elements": "^3.3.0",
     "@ionic/vue": "^8.7.16",
     "@ionic/vue-router": "^8.7.16",

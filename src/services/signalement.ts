@@ -53,6 +53,7 @@ export type SignalementFormInput = {
   budget: string;
   latitude: string;
   longitude: string;
+  photos?: string[]; // Photos en base64
 };
 
 const parseNumberOrNull = (value: string): number | null => {
@@ -79,6 +80,7 @@ export const prepareSignalementPayload = (
     status: "nouveau",
     userId: currentUser?.uid ?? null,
     userEmail: currentUser?.email ?? null,
+    photos: form.photos || [],
   };
 };
 
@@ -98,6 +100,7 @@ export const submitSignalement = async (
     status,
     userId,
     userEmail,
+    photos,
   } = payload;
 
   // Validation minimale
@@ -126,11 +129,14 @@ export const submitSignalement = async (
       id: newId,
       title,
       description,
+      surfaceM2,
+      budget,
       latitude: latitude || null,
       longitude: longitude || null,
       status: status || "nouveau",
       userId: userId || null,
       userEmail: userEmail || null,
+      photos: photos || [],
       createdAt: new Date(),
       updatedAt: new Date(),
     });
