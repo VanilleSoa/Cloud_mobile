@@ -49,11 +49,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { actionSheetController } from '@ionic/vue';
+import { actionSheetController, toastController } from '@ionic/vue';
 import { auth } from '@/Firebase/FirebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
 import { listenMySignalementsStatus } from '@/services/signalement';
-import { initNotifications, showStatusChangeNotification } from '@/services/notifications';
 import type { SignalementRecord } from '@/types/signalement';
+import { initNotifications, showStatusChangeNotification, checkNotificationPermission } from '@/services/notifications';
+import { Capacitor } from '@capacitor/core';
 
 const emit = defineEmits(['filter-change', 'refresh-signalements']);
 
@@ -61,17 +63,16 @@ const lastSignalements = ref<SignalementRecord[]>([]);
 
 function getSignalementTitle(id: string) {
   console.log('[DEBUG] getSignalementTitle called with id:', id);
-  console.log('[DEBUG] lastSignalements.value:', lastSignalements.value);
   
   // Chercher par document ID (Firestore)
-  let found = lastSignalements.value.find((s: SignalementRecord) => s.id === id);
+  let found = lastSignalements.value.find((s) => s.id === id);
   if (!found) {
     // Chercher par champ ID numérique 
-    found = lastSignalements.value.find((s: any) => s.id == id || s.numId == id);
+    found = lastSignalements.value.find((s) => s.id == id);
   }
   
   console.log('[DEBUG] found signalement:', found);
-  return found ? found.title || 'Sans titre' : `Type inconnu (ID:${id})`;
+  return found ? (found.title || 'Signalement sans titre') : 'Signalement';
 }
 
 const hasNotif = ref(false);
@@ -89,40 +90,119 @@ if (savedNotifs) {
 }
 const showNotifModal = ref(false);
 let unsubscribe: (() => void) | null = null;
+let authUnsubscribe: (() => void) | null = null;
+
+// Stockage des derniers statuts connus (persisté)
+const LAST_STATUSES_KEY = 'signalement_last_statuses';
+
+function startSignalementListener() {
+  // Arrêter l'ancien listener si existant
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
+  
+  // Charger les statuts précédemment connus
+  let savedStatuses: Record<string, string> = {};
+  try {
+    const saved = localStorage.getItem(LAST_STATUSES_KEY);
+    if (saved) savedStatuses = JSON.parse(saved);
+  } catch (e) {
+    savedStatuses = {};
+  }
+  
+  let isFirstLoad = true;
+  
+  unsubscribe = listenMySignalementsStatus('', async (signalements, changesFromListener) => {
+    lastSignalements.value = signalements as SignalementRecord[];
+    
+    console.log('[AppHeader] Signalements reçus:', signalements.length);
+    console.log('[AppHeader] Changes from listener:', changesFromListener);
+    
+    // Détecter les changements par rapport aux statuts sauvegardés
+    const allChanges: {id: string, oldStatus: string, newStatus: string}[] = [];
+    
+    for (const s of signalements) {
+      const oldSaved = savedStatuses[s.id];
+      if (oldSaved && oldSaved !== s.status) {
+        allChanges.push({ id: s.id, oldStatus: oldSaved, newStatus: s.status });
+      }
+      // Mettre à jour le statut sauvegardé
+      savedStatuses[s.id] = s.status;
+    }
+    
+    // Persister les statuts
+    localStorage.setItem(LAST_STATUSES_KEY, JSON.stringify(savedStatuses));
+    
+    // Si c'est la première charge, on ne notifie que les changements détectés
+    const changesToNotify = isFirstLoad ? allChanges : [...changesFromListener, ...allChanges.filter(c => !changesFromListener.find(cl => cl.id === c.id))];
+    isFirstLoad = false;
+    
+    console.log('[AppHeader] Changes to notify:', changesToNotify);
+    
+    if (changesToNotify.length > 0) {
+      // Afficher un toast pour debug
+      const toast = await toastController.create({
+        message: `🔔 ${changesToNotify.length} changement(s) de statut détecté(s)`,
+        duration: 3000,
+        position: 'top',
+        color: 'warning'
+      });
+      await toast.present();
+      
+      // Envoyer une notification native pour chaque changement
+      for (const change of changesToNotify) {
+        const signalement = signalements.find((s: any) => s.id === change.id) as SignalementRecord | undefined;
+        const title = signalement?.title || getSignalementTitle(change.id);
+        
+        console.log('[AppHeader] Envoi notification pour:', title, change.oldStatus, '->', change.newStatus);
+        
+        await showStatusChangeNotification(
+          title,
+          change.oldStatus,
+          change.newStatus,
+          change.id,
+          signalement?.latitude ?? undefined,
+          signalement?.longitude ?? undefined
+        );
+      }
+      
+      // Persister dans le localStorage (backup)
+      notifList.value = [...notifList.value, ...changesToNotify];
+      localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifList.value));
+      hasNotif.value = true;
+    }
+  });
+}
 
 onMounted(async () => {
   // Initialiser les notifications natives
   await initNotifications();
   
-  const user = auth.currentUser;
-  if (user) {
-    unsubscribe = listenMySignalementsStatus(user.uid, async (signalements, changes) => {
-      lastSignalements.value = signalements;
-      console.log('[DEBUG][listenMySignalementsStatus] signalements:', signalements);
-      console.log('[DEBUG][listenMySignalementsStatus] changes:', changes);
-      if (changes.length > 0) {
-        notifList.value = [...notifList.value, ...changes];
-        // Persiste dans le localStorage
-        localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifList.value));
-        // Affiche la pastille même si la modal est ouverte
-        hasNotif.value = true;
-        
-        // Envoyer des notifications natives sur le téléphone
-        for (const change of changes) {
-          const title = getSignalementTitle(change.id);
-          await showStatusChangeNotification(
-            change.id,
-            title,
-            change.oldStatus,
-            change.newStatus
-          );
-        }
-      }
-    });
+  // Demander la permission immédiatement
+  if (Capacitor.isNativePlatform()) {
+    const hasPermission = await checkNotificationPermission();
+    console.log('[AppHeader] Permission notifications:', hasPermission);
   }
+  
+  // Écouter les changements d'authentification
+  authUnsubscribe = onAuthStateChanged(auth, (user) => {
+    console.log('[AppHeader] Auth state changed, user:', user?.email);
+    if (user) {
+      // Démarrer le listener quand l'utilisateur est connecté
+      startSignalementListener();
+    } else {
+      // Arrêter le listener si déconnecté
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    }
+  });
 });
 onUnmounted(() => {
   if (unsubscribe) unsubscribe();
+  if (authUnsubscribe) authUnsubscribe();
 });
 
 const openFilters = async () => {
@@ -181,30 +261,42 @@ const closeNotifModal = () => {
 // Synchronisation manuelle des notifications depuis Firebase
 async function syncNotifications() {
   const user = auth.currentUser;
-  if (!user) return;
-  if (unsubscribe) unsubscribe();
-  unsubscribe = listenMySignalementsStatus(user.uid, async (signalements, changes) => {
-    lastSignalements.value = signalements;
-    if (changes.length > 0) {
-      notifList.value = [...notifList.value, ...changes];
-      localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifList.value));
-      hasNotif.value = true;
-      
-      // Envoyer des notifications natives sur le téléphone
-      for (const change of changes) {
-        const title = getSignalementTitle(change.id);
-        await showStatusChangeNotification(
-          change.id,
-          title,
-          change.oldStatus,
-          change.newStatus
-        );
-      }
-    }
+  if (!user) {
+    const toast = await toastController.create({
+      message: '⚠️ Vous devez être connecté',
+      duration: 2000,
+      color: 'warning',
+      position: 'bottom'
+    });
+    await toast.present();
+    return;
+  }
+  
+  // Afficher un toast de chargement
+  const loadingToast = await toastController.create({
+    message: '🔄 Synchronisation en cours...',
+    duration: 1500,
+    color: 'primary',
+    position: 'bottom'
   });
+  await loadingToast.present();
+  
+  // Redémarrer le listener pour forcer une nouvelle lecture de Firebase
+  startSignalementListener();
   
   // Émet un événement pour que le parent rafraîchisse les signalements
   emit('refresh-signalements');
+  
+  // Afficher un toast de succès après 1.5s
+  setTimeout(async () => {
+    const successToast = await toastController.create({
+      message: '✅ Synchronisation terminée',
+      duration: 2000,
+      color: 'success',
+      position: 'bottom'
+    });
+    await successToast.present();
+  }, 1500);
 }
 
 defineExpose({ syncNotifications });

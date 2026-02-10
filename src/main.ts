@@ -5,6 +5,7 @@ import router from './router';
 import { IonicVue } from '@ionic/vue';
 
 import { defineCustomElements } from '@ionic/pwa-elements/loader';
+import { setNotificationRouter, setupNotificationListeners } from './services/notifications';
 
 import '@ionic/vue/css/core.css';
 
@@ -42,6 +43,10 @@ const app = createApp(App)
   .use(IonicVue)
   .use(router);
 
-router.isReady().then(() => {
+router.isReady().then(async () => {
+  // Configurer les notifications avec le router
+  setNotificationRouter(router);
+  await setupNotificationListeners();
+  
   app.mount('#app');
 });

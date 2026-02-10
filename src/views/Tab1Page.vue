@@ -9,6 +9,15 @@
         <div class="map-hint">
           <ion-text>Appuyez sur la carte pour signaler un probleme.</ion-text>
         </div>
+        <!-- Bouton de test notification (debug) -->
+        <ion-button 
+          class="debug-notif-btn" 
+          size="small" 
+          color="danger"
+          @click="testNotification"
+        >
+          🔔 Test Notif
+        </ion-button>
       </div>
 
       <ion-modal :is-open="isModalOpen" @didDismiss="closeModal" class="signalement-modal">
@@ -229,6 +238,8 @@ import {
   IonSelectOption,
   IonIcon,
   actionSheetController,
+  toastController,
+  onIonViewWillEnter,
 } from "@ionic/vue";
 import { addIcons } from "ionicons";
 import {
@@ -238,6 +249,7 @@ import {
   locateOutline,
   sendOutline,
   alertCircle,
+  checkmarkCircle,
   trashOutline,
   chevronDownOutline,
 } from "ionicons/icons";
@@ -250,6 +262,7 @@ addIcons({
   "locate-outline": locateOutline,
   "send-outline": sendOutline,
   "alert-circle": alertCircle,
+  "checkmark-circle": checkmarkCircle,
   "trash-outline": trashOutline,
   "chevron-down-outline": chevronDownOutline,
 });
@@ -279,6 +292,8 @@ import type { SignalementFormInput } from "@/services/signalement";
 import type { SignalementRecord, SignalementStatus } from "@/types/signalement";
 import { useSignalementPhotos } from "@/composables/useSignalementPhotos";
 import { fetchTypesSignalement, type TypeSignalement } from "@/services/typeSignalement";
+import { showStatusChangeNotification, initNotifications, checkNotificationPermission } from "@/services/notifications";
+import { Capacitor } from '@capacitor/core';
 
 const route = useRoute();
 const mapElement = ref<HTMLElement | null>(null);
@@ -381,6 +396,79 @@ const refreshAllSignalements = async () => {
   await loadMySignalements();
   refreshSignalementMarkers();
 };
+
+// ===== FONCTION DE TEST NOTIFICATION =====
+const testNotification = async () => {
+  const isNative = Capacitor.isNativePlatform();
+  
+  // Afficher un toast pour montrer l'état
+  const toast1 = await toastController.create({
+    message: `📱 Plateforme: ${isNative ? 'Native (Android/iOS)' : 'Web'}`,
+    duration: 2000,
+    position: 'top',
+    color: isNative ? 'success' : 'warning'
+  });
+  await toast1.present();
+  
+  if (!isNative) {
+    const toast2 = await toastController.create({
+      message: '⚠️ Notifications natives uniquement sur mobile !',
+      duration: 3000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast2.present();
+    return;
+  }
+  
+  try {
+    // Initialiser les notifications
+    await initNotifications();
+    
+    // Vérifier la permission
+    const hasPermission = await checkNotificationPermission();
+    
+    const toast3 = await toastController.create({
+      message: hasPermission ? '✅ Permission accordée' : '❌ Permission refusée',
+      duration: 2000,
+      position: 'top',
+      color: hasPermission ? 'success' : 'danger'
+    });
+    await toast3.present();
+    
+    if (!hasPermission) {
+      return;
+    }
+    
+    // Envoyer une notification test
+    await showStatusChangeNotification(
+      'Test Signalement',
+      'nouveau',
+      'en_cours',
+      'test-123',
+      48.8566, // Paris latitude
+      2.3522   // Paris longitude
+    );
+    
+    const toast4 = await toastController.create({
+      message: '🔔 Notification envoyée ! Vérifiez votre barre de notifications.',
+      duration: 3000,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast4.present();
+    
+  } catch (error: any) {
+    const toast5 = await toastController.create({
+      message: `❌ Erreur: ${error.message || error}`,
+      duration: 4000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast5.present();
+  }
+};
+// ===== FIN TEST NOTIFICATION =====
 
 const renderError = (text: string) => {
   message.value = text;
@@ -537,6 +625,113 @@ const updateMarker = (latitude: number, longitude: number) => {
   }
 };
 
+// Icônes SVG pour chaque type de signalement (correspondant à l'image de référence)
+const markerIcons: Record<string, string> = {
+  // En construction - bandes jaune/noir
+  construction: `<rect x="4" y="8" width="16" height="3" fill="#000" /><rect x="4" y="13" width="16" height="3" fill="#000" />`,
+  // Accident - point d'exclamation rouge
+  accident: `<circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">!</text>`,
+  // Nid de poule - demi-cercle noir
+  niddepoule: `<ellipse cx="12" cy="14" rx="8" ry="5" fill="white"/><path d="M4 14 Q12 22 20 14" fill="#333"/>`,
+  // Réparé - checkmark vert
+  repare: `<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="white"/>`,
+  // Abimé - carré brisé
+  abime: `<rect x="5" y="5" width="14" height="14" fill="none" stroke="white" stroke-width="2.5" stroke-dasharray="3,2"/><path d="M5 5 L19 19 M19 5 L5 19" stroke="white" stroke-width="2"/>`,
+  // Alerte - flamme
+  alerte: `<path d="M12 2C9 6 7 9 7 12c0 2.8 2.2 5 5 5s5-2.2 5-5c0-3-2-6-5-10zm0 13c-1.1 0-2-.9-2-2 0-1 .5-2 2-4 1.5 2 2 3 2 4 0 1.1-.9 2-2 2z" fill="white"/>`,
+  // Zone rouge - cercle rouge vide
+  zonerouge: `<circle cx="12" cy="12" r="8" fill="none" stroke="white" stroke-width="3"/>`,
+  // Fuite/Eau - goutte d'eau
+  eau: `<path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z" fill="white"/>`,
+  // EFT - point d'interrogation
+  eft: `<text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">?</text>`,
+  // Électricité - éclair
+  electricite: `<path d="M7 2v11h3v9l7-12h-4l4-8z" fill="white"/>`,
+  // Déchet - poubelle  
+  dechet: `<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="white"/>`,
+  // EFT - point d'interrogation
+  eft: `<text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">?</text>`,
+  // Autre - cercle avec point
+  autre: `<circle cx="12" cy="12" r="8" fill="none" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="white"/>`,
+};
+
+// Fonction pour créer des icônes de marker personnalisées avec icône
+const createCustomIcon = (color: string, iconType: string) => {
+  const iconPath = markerIcons[iconType] || markerIcons.autre;
+  
+  const svgIcon = `
+    <svg width="36" height="48" viewBox="0 0 36 48" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+        </filter>
+      </defs>
+      <path d="M18 0C8.1 0 0 8.1 0 18c0 12.7 18 30 18 30s18-17.3 18-30c0-9.9-8.1-18-18-18z" fill="${color}" filter="url(#shadow)"/>
+      <g transform="translate(6, 6) scale(1)">
+        ${iconPath}
+      </g>
+    </svg>
+  `;
+  
+  return L.divIcon({
+    html: svgIcon,
+    className: 'custom-marker',
+    iconSize: [36, 48],
+    iconAnchor: [18, 48],
+    popupAnchor: [0, -48]
+  });
+};
+
+// Fonction pour obtenir la couleur et l'icône selon le type de signalement
+const getMarkerStyle = (title: string): { color: string; icon: string; label: string } => {
+  const titleLower = title.toLowerCase();
+  
+  // En construction - jaune avec bandes
+  if (titleLower.includes('construction') || titleLower.includes('travaux') || titleLower.includes('chantier')) {
+    return { color: '#FFC107', icon: 'construction', label: 'En construction' };
+  }
+  // Accident - rouge avec !
+  else if (titleLower.includes('accident') || titleLower.includes('collision')) {
+    return { color: '#F44336', icon: 'accident', label: 'Accident' };
+  }
+  // Nid de poule - gris/noir
+  else if (titleLower.includes('nid de poule') || titleLower.includes('trou') || titleLower.includes('chaussée')) {
+    return { color: '#607D8B', icon: 'niddepoule', label: 'Nid de poule' };
+  }
+  // Réparé - vert avec checkmark
+  else if (titleLower.includes('réparé') || titleLower.includes('repare') || titleLower.includes('terminé') || titleLower.includes('résolu')) {
+    return { color: '#4CAF50', icon: 'repare', label: 'Réparé' };
+  }
+  // Abimé - orange avec triangle
+  else if (titleLower.includes('abimé') || titleLower.includes('abime') || titleLower.includes('dégradé') || titleLower.includes('cassé')) {
+    return { color: '#FF9800', icon: 'abime', label: 'Abimé' };
+  }
+  // Alerte - orange/rouge avec flamme
+  else if (titleLower.includes('alerte') || titleLower.includes('urgence') || titleLower.includes('feu') || titleLower.includes('incendie')) {
+    return { color: '#FF5722', icon: 'alerte', label: 'Alerte' };
+  }
+  // Zone rouge - rouge avec cercle
+  else if (titleLower.includes('zone rouge') || titleLower.includes('danger') || titleLower.includes('interdit')) {
+    return { color: '#E91E63', icon: 'zonerouge', label: 'Zone rouge' };
+  }
+  // Fuite/Eau - bleu avec goutte
+  else if (titleLower.includes('eau') || titleLower.includes('fuite') || titleLower.includes('inondation') || titleLower.includes('canalisation')) {
+    return { color: '#2196F3', icon: 'eau', label: 'Fuite / Eau' };
+  }
+  // EFT - bleu clair avec ?
+  else if (titleLower.includes('eft') || titleLower.includes('électricité') || titleLower.includes('electricité') || titleLower.includes('éclairage') || titleLower.includes('lampadaire')) {
+    return { color: '#03A9F4', icon: 'eft', label: 'EFT' };
+  }
+  // Déchet
+  else if (titleLower.includes('déchet') || titleLower.includes('ordure') || titleLower.includes('poubelle')) {
+    return { color: '#8BC34A', icon: 'dechet', label: 'Déchet' };
+  }
+  // Autre - gris avec ?
+  else {
+    return { color: '#9E9E9E', icon: 'autre', label: 'Autre' };
+  }
+};
+
 const refreshSignalementMarkers = () => {
   if (!mapInstance) {
     return;
@@ -553,17 +748,81 @@ const refreshSignalementMarkers = () => {
       return;
     }
 
-    const popup = `
-      <strong>${item.title}</strong><br/>
-      ${item.description}<br/>
-      Statut: ${item.status}<br/>
-      ${item.surfaceM2 ? `Surface: ${item.surfaceM2} m2<br/>` : ""}
-      ${item.budget ? `Budget: ${item.budget} MGA<br/>` : ""}
-    `;
+    // Obtenir le style (couleur + icône) selon le type de signalement
+    const markerStyle = getMarkerStyle(item.title);
+    
+    // Badge de statut avec couleur
+    const getStatusBadge = (status: string) => {
+      const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+        'nouveau': { bg: '#FFF3CD', text: '#856404', label: '🆕 Nouveau' },
+        'en_cours': { bg: '#CCE5FF', text: '#004085', label: '🔄 En cours' },
+        'termine': { bg: '#D4EDDA', text: '#155724', label: '✅ Terminé' },
+      };
+      const style = statusColors[status] || { bg: '#E2E3E5', text: '#383D41', label: status };
+      return `<span style="display: inline-block; padding: 4px 10px; border-radius: 12px; background: ${style.bg}; color: ${style.text}; font-size: 12px; font-weight: 600;">${style.label}</span>`;
+    };
 
-    L.marker([item.latitude, item.longitude])
-      .bindPopup(popup)
+    // Construire le popup amélioré
+    let popupContent = `
+      <div style="min-width: 220px; max-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    `;
+    
+    // Photos en haut
+    if (item.photos && item.photos.length > 0) {
+      popupContent += `<div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center;">`;
+      item.photos.forEach((photoUrl: string) => {
+        popupContent += `<img src="${photoUrl}" style="width: 70px; height: 70px; border-radius: 8px; object-fit: cover; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15);" onclick="window.open('${photoUrl}', '_blank')" />`;
+      });
+      popupContent += `</div>`;
+    }
+    
+    // Titre avec barre colorée
+    popupContent += `
+      <div style="border-left: 4px solid ${markerStyle.color}; padding-left: 10px; margin-bottom: 10px;">
+        <div style="font-size: 15px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">${item.title}</div>
+        <div style="font-size: 13px; color: #666; line-height: 1.4;">${item.description || 'Pas de description'}</div>
+      </div>
+    `;
+    
+    // Statut
+    popupContent += `<div style="margin-bottom: 10px;">${getStatusBadge(item.status)}</div>`;
+    
+    // Détails (surface et budget)
+    if (item.surfaceM2 || item.budget) {
+      popupContent += `<div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;">`;
+      if (item.surfaceM2) {
+        popupContent += `<div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #555;">
+          <span style="font-size: 14px;">📐</span>
+          <span>${item.surfaceM2} m²</span>
+        </div>`;
+      }
+      if (item.budget) {
+        popupContent += `<div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #555;">
+          <span style="font-size: 14px;">💰</span>
+          <span>${new Intl.NumberFormat('fr-FR').format(item.budget)} MGA</span>
+        </div>`;
+      }
+      popupContent += `</div>`;
+    }
+    
+    // Date de création
+    if (item.createdAt) {
+      const dateStr = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt);
+      popupContent += `<div style="font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 8px; margin-top: 4px;">
+        📅 Créé le ${dateStr}
+      </div>`;
+    }
+    
+    popupContent += `</div>`;
+
+    const customIcon = createCustomIcon(markerStyle.color, markerStyle.icon);
+
+    const marker = L.marker([item.latitude, item.longitude], { icon: customIcon })
+      .bindPopup(popupContent, { maxWidth: 300, className: 'custom-popup' })
       .addTo(signalementLayer as L.LayerGroup);
+    
+    // Stocker l'ID du signalement sur le marker pour pouvoir le retrouver
+    (marker as any).signalementId = item.id;
   });
 };
 
@@ -645,7 +904,8 @@ onMounted(() => {
   loadAllSignalements().then(() => {
     refreshSignalementMarkers();
     
-    // Vérifier si on a des paramètres de navigation (lat, lng, zoom)
+    // Vérifier si on a des paramètres de navigation (id, lat, lng, zoom)
+    const signalementId = route.query.id as string;
     const lat = route.query.lat as string;
     const lng = route.query.lng as string;
     const zoom = route.query.zoom as string;
@@ -659,21 +919,17 @@ onMounted(() => {
         // Centrer la carte sur le signalement
         mapInstance.setView([latitude, longitude], zoomLevel);
         
-        // Ajouter un marqueur temporaire pour mettre en évidence
-        const highlightMarker = L.marker([latitude, longitude], {
-          icon: L.icon({
-            iconUrl: markerIcon,
-            iconRetinaUrl: markerIcon2x,
-            shadowUrl: markerShadow,
-            iconSize: [35, 51],
-            iconAnchor: [17, 51],
-          })
-        }).addTo(mapInstance);
-        
-        // Ouvrir le popup du marqueur s'il existe
-        setTimeout(() => {
-          highlightMarker.openPopup();
-        }, 500);
+        // Trouver et ouvrir le popup du signalement correspondant
+        if (signalementId && signalementLayer) {
+          setTimeout(() => {
+            signalementLayer!.eachLayer((layer: any) => {
+              if (layer.signalementId == signalementId || String(layer.signalementId) === String(signalementId)) {
+                console.log('[Tab1Page] Ouverture du popup pour signalement:', signalementId);
+                layer.openPopup();
+              }
+            });
+          }, 500);
+        }
       }
     }
   });
@@ -717,6 +973,63 @@ watch([mySignalements, allSignalements, statusFilter], () => {
   refreshSignalementMarkers();
 });
 
+// Fonction pour centrer sur un signalement et ouvrir son popup
+const focusOnSignalement = (signalementId: string, lat: number, lng: number, zoom: number = 18) => {
+  if (!mapInstance) return;
+  
+  // Centrer la carte
+  mapInstance.setView([lat, lng], zoom);
+  
+  // Ouvrir le popup du signalement
+  if (signalementLayer) {
+    setTimeout(() => {
+      signalementLayer!.eachLayer((layer: any) => {
+        if (String(layer.signalementId) === String(signalementId)) {
+          console.log('[Tab1Page] Focus sur signalement:', signalementId);
+          layer.openPopup();
+        }
+      });
+    }, 300);
+  }
+};
+
+// Gérer la navigation depuis la page de liste
+onIonViewWillEnter(() => {
+  const signalementId = route.query.id as string;
+  const lat = route.query.lat as string;
+  const lng = route.query.lng as string;
+  const zoom = route.query.zoom as string;
+  
+  if (signalementId && lat && lng) {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const zoomLevel = zoom ? parseInt(zoom) : 18;
+    
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+      console.log('[Tab1Page] Navigation depuis liste - signalement:', signalementId);
+      
+      // Si la carte est déjà initialisée, focus immédiatement
+      if (mapInstance && signalementLayer) {
+        focusOnSignalement(signalementId, latitude, longitude, zoomLevel);
+      } else {
+        // Sinon, attendre que la carte soit prête
+        const checkMap = setInterval(() => {
+          if (mapInstance && signalementLayer && allSignalements.value.length > 0) {
+            clearInterval(checkMap);
+            refreshSignalementMarkers();
+            setTimeout(() => {
+              focusOnSignalement(signalementId, latitude, longitude, zoomLevel);
+            }, 200);
+          }
+        }, 100);
+        
+        // Timeout de sécurité après 5 secondes
+        setTimeout(() => clearInterval(checkMap), 5000);
+      }
+    }
+  }
+});
+
 onBeforeUnmount(() => {
   if (mapInstance) {
     mapInstance.remove();
@@ -726,6 +1039,27 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Custom Marker Styling */
+:global(.custom-marker) {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Custom Popup Styling */
+:global(.custom-popup .leaflet-popup-content-wrapper) {
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 0;
+}
+
+:global(.custom-popup .leaflet-popup-content) {
+  margin: 12px;
+}
+
+:global(.custom-popup .leaflet-popup-tip) {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
 /* Modal Styling */
 .signalement-modal ion-modal {
   --height: 90%;
@@ -1063,6 +1397,15 @@ ion-select::part(icon) {
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 6px 16px rgba(255, 193, 7, 0.15);
   color: var(--c-grey-700);
+}
+
+.debug-notif-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  --border-radius: 8px;
+  font-size: 12px;
 }
 
 .map-controls {

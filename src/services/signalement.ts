@@ -13,29 +13,124 @@ import {
   DocumentData,
 } from "firebase/firestore";
 
-// Écouteur temps réel pour les signalements d'un utilisateur
+// Mapping pour les types de signalement (format web)
+const typeSignalementMap: Record<number, string> = {
+  1: 'Nid de poule',
+  2: 'Fuite / eau',
+  3: 'Abîmé',
+  4: 'Accident',
+  5: 'Construction',
+  6: 'Électricité',
+  7: 'Déchet',
+  8: 'Alerte',
+  9: 'Autre',
+};
+
+// Mapping pour les statuts (format web)
+const statutsMap: Record<number, string> = {
+  1: 'nouveau',
+  2: 'en_cours',
+  3: 'termine',
+};
+
+// Cache pour les points
+let pointsCache: Record<number, { latitude: number; longitude: number }> | null = null;
+
+async function loadPointsCache(): Promise<Record<number, { latitude: number; longitude: number }>> {
+  if (pointsCache) return pointsCache;
+  pointsCache = {};
+  try {
+    const pointsSnapshot = await getDocs(query(collection(db, "points")));
+    pointsSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.id && data.latitude !== undefined && data.longitude !== undefined) {
+        pointsCache![data.id] = { latitude: data.latitude, longitude: data.longitude };
+      }
+    });
+    console.log('[loadPointsCache] Points chargés:', Object.keys(pointsCache).length, '- IDs disponibles:', Object.keys(pointsCache).join(', '));
+  } catch (e) {
+    console.warn('[loadPointsCache] Collection points non trouvée');
+  }
+  return pointsCache;
+}
+
+// Fonction pour normaliser un document (supporte format web et mobile)
+function normalizeSignalement(docId: string, data: DocumentData, pointsMap: Record<number, { latitude: number; longitude: number }>): SignalementRecord {
+  let title = data.title;
+  let status = data.status;
+  let latitude = data.latitude;
+  let longitude = data.longitude;
+  
+  // Format web : convertir les IDs en valeurs (priorité au titre existant)
+  if (!title && data.type_signalement_id) {
+    const mappedTitle = typeSignalementMap[data.type_signalement_id];
+    title = mappedTitle || `Type ${data.type_signalement_id}`;
+    console.log('[normalizeSignalement] Conversion type_signalement_id:', data.type_signalement_id, '→', title);
+  }
+  if (!status && data.statuts_id) {
+    status = statutsMap[data.statuts_id] || 'nouveau';
+  }
+  if ((latitude === undefined || longitude === undefined) && data.point_id) {
+    const point = pointsMap[data.point_id];
+    if (point) {
+      latitude = point.latitude;
+      longitude = point.longitude;
+    } else {
+      console.warn('[normalizeSignalement] Point non trouvé pour point_id:', data.point_id, '- Signalement:', docId);
+    }
+  }
+  
+  // Gérer le createdAt
+  let createdAt = null;
+  if (data.createdAt?.toDate) {
+    createdAt = data.createdAt.toDate();
+  } else if (data.createdAt?.seconds) {
+    createdAt = new Date(data.createdAt.seconds * 1000);
+  } else if (data.date) {
+    createdAt = new Date(data.date);
+  }
+  
+  return {
+    id: docId,
+    title,
+    description: data.description,
+    status,
+    latitude,
+    longitude,
+    photos: data.photos || [],
+    budget: data.budget,
+    surfaceM2: data.surfaceM2 ?? data.surface,
+    userId: data.userId ?? (data.user_id ? String(data.user_id) : null),
+    userEmail: data.userEmail,
+    createdAt,
+  } as SignalementRecord;
+}
+
+// Écouteur temps réel pour les signalements
 export function listenMySignalementsStatus(_userId: string, onChange: (signalements: SignalementRecord[], changes: {id: string, oldStatus: string, newStatus: string}[]) => void) {
-  // lastStatuses doit persister entre les appels du callback
   const lastStatuses: Record<string, string> = {};
   let initialized = false;
-  const q = query(collection(db, "signalements")); // plus de filtre userId
+  let pointsMap: Record<number, { latitude: number; longitude: number }> = {};
+  
+  // Charger les points d'abord
+  loadPointsCache().then((p) => { pointsMap = p; });
+  
+  const q = query(collection(db, "signalements"));
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-    const signalements: SignalementRecord[] = snapshot.docs.map((doc) => {
-      const data = doc.data() as SignalementPayload & { createdAt?: { toDate?: () => Date } };
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate?.() ?? null,
-      };
-    });
+    const signalements: SignalementRecord[] = snapshot.docs
+      .map((doc) => normalizeSignalement(doc.id, doc.data(), pointsMap))
+      .filter((s) => s.title); // Garder seulement les docs avec titre
+    
     const changes: {id: string, oldStatus: string, newStatus: string}[] = [];
     for (const s of signalements) {
       if (initialized && lastStatuses[s.id] && lastStatuses[s.id] !== s.status) {
         changes.push({id: s.id, oldStatus: lastStatuses[s.id], newStatus: s.status});
+        console.log('[listenMySignalementsStatus] Changement détecté:', s.id, lastStatuses[s.id], '->', s.status);
       }
       lastStatuses[s.id] = s.status;
     }
     initialized = true;
+    console.log('[listenMySignalementsStatus] Signalements:', signalements.length, 'Changes:', changes.length);
     onChange(signalements, changes);
   });
 }
@@ -240,23 +335,33 @@ export const fetchMySignalements = async (
 };
 
 export const fetchAllSignalements = async (): Promise<SignalementRecord[]> => {
+  console.log('[fetchAllSignalements] Démarrage récupération...');
+  
+  // Charger le cache des points
+  const pointsMap = await loadPointsCache();
+  
   const snapshot = await getDocs(query(collection(db, "signalements")));
-
-  return snapshot.docs
+  console.log('[fetchAllSignalements] Documents trouvés:', snapshot.docs.length);
+  
+  const results = snapshot.docs
     .map((doc) => {
-      const data = doc.data() as SignalementPayload & {
-        createdAt?: { toDate?: () => Date };
-      };
-
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate?.() ?? null,
-      };
+      const signalement = normalizeSignalement(doc.id, doc.data(), pointsMap);
+      console.log('[fetchAllSignalements] Normalisé:', doc.id, 'title:', signalement.title, 'status:', signalement.status, 'lat:', signalement.latitude, 'lng:', signalement.longitude);
+      return signalement;
+    })
+    .filter((s) => {
+      const isValid = s.title;
+      if (!isValid) {
+        console.warn('[fetchAllSignalements] Document ignoré (sans titre):', s.id);
+      }
+      return isValid;
     })
     .sort((a, b) => {
       const timeA = a.createdAt ? a.createdAt.getTime() : 0;
       const timeB = b.createdAt ? b.createdAt.getTime() : 0;
       return timeB - timeA;
     });
+  
+  console.log('[fetchAllSignalements] Total valides retournés:', results.length);
+  return results;
 };
