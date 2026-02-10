@@ -10,6 +10,7 @@ export type SignalementPayload = {
   status: SignalementStatus;
   userId: string | null;
   userEmail: string | null;
+  photos?: string[]; // URLs Cloudinary des photos uploadées
 };
 
 export type SignalementRecord = SignalementPayload & {

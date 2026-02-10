@@ -10,7 +10,7 @@ const router = Router();
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { title, description, surfaceM2, budget, latitude, longitude, status, userId, userEmail } = req.body;
+    const { title, description, surfaceM2, budget, latitude, longitude, status, userId, userEmail, photos } = req.body;
 
     // Validation minimale
     if (!title || !description) {
@@ -31,6 +31,7 @@ router.post('/', async (req: Request, res: Response) => {
       status: status || 'nouveau',
       userId: userId || null,
       userEmail: userEmail || null,
+      photos: photos || [],
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -71,6 +72,7 @@ router.get('/', async (req: Request, res: Response) => {
         status: data.status || 'nouveau',
         userId: data.userId || null,
         userEmail: data.userEmail || null,
+        photos: data.photos || [],
         createdAt: data.createdAt?.toDate() || null,
         updatedAt: data.updatedAt?.toDate?.() || null,
       });
@@ -128,6 +130,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       status: data!.status || 'nouveau',
       userId: data!.userId || null,
       userEmail: data!.userEmail || null,
+      photos: data!.photos || [],
       createdAt: data!.createdAt?.toDate() || null,
       updatedAt: data!.updatedAt?.toDate?.() || null,
     };
@@ -173,6 +176,7 @@ router.get('/user/:userId', async (req: Request, res: Response) => {
         status: data.status || 'nouveau',
         userId: data.userId || null,
         userEmail: data.userEmail || null,
+        photos: data.photos || [],
         createdAt: data.createdAt?.toDate() || null,
         updatedAt: data.updatedAt?.toDate?.() || null,
       });
@@ -227,6 +231,7 @@ router.get('/status/:status', async (req: Request, res: Response) => {
         status: data.status || 'nouveau',
         userId: data.userId || null,
         userEmail: data.userEmail || null,
+        photos: data.photos || [],
         createdAt: data.createdAt?.toDate() || null,
         updatedAt: data.updatedAt?.toDate?.() || null,
       });

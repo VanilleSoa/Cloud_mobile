@@ -96,6 +96,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { onIonViewWillEnter } from '@ionic/vue';
 import {
   IonPage,
   IonHeader,
@@ -162,6 +163,12 @@ const formatCurrency = (amount: number) => {
 };
 
 onMounted(() => {
+  loadSignalements();
+});
+
+// Rafraîchir les données à chaque fois qu'on entre sur la page
+onIonViewWillEnter(() => {
+  console.log('[AvancementPage] Rafraîchissement des statistiques...');
   loadSignalements();
 });
 </script>

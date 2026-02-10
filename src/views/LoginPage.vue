@@ -107,7 +107,7 @@ import {
   onAuthStateChanged,
   User
 } from 'firebase/auth';
-import { logLoginAttempt } from '@/services/api';
+import { logLoginAttempt, checkIfAccountIsBlocked } from '@/services/api';
 
 const router = useRouter();
 
@@ -162,6 +162,45 @@ const signIn = async () => {
   message.value = '';
   
   try {
+    // VÉRIFICATION SI LE COMPTE EST BLOQUÉ
+    let isBlocked = false;
+    
+    try {
+      // Essayer d'abord avec l'API backend
+      isBlocked = await checkIfAccountIsBlocked(email.value);
+    } catch (apiError) {
+      console.warn('API backend unavailable, checking locally:', apiError);
+      // Fallback: vérification locale dans Firestore
+      try {
+        const { db } = await import('@/Firebase/FirebaseConfig');
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email.value));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          const userData = snapshot.docs[0].data();
+          // Vérifier si le statut est "Bloque" ou si les tentatives ont dépassé la limite
+          if (userData.statuts_user_id === 2) { // ID pour "Bloque"
+            isBlocked = true;
+          }
+        }
+      } catch (firestoreError) {
+        console.error('Error checking local account status:', firestoreError);
+      }
+    }
+    
+    if (isBlocked) {
+      showMessage('Ce compte est bloqué. Veuillez contacter un administrateur.', 'danger');
+      // Log l'essai de connexion malgré le blocage
+      await logLoginAttempt(email.value, false);
+      loading.value = false;
+      action.value = '';
+      return;
+    }
+    
+    // TENTATIVE DE CONNEXION
     const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
     
     // Log successful login attempt
@@ -178,7 +217,17 @@ const signIn = async () => {
     // Log failed login attempt
     await logLoginAttempt(email.value, false);
     
-    showMessage(`Erreur: ${error.message}`, 'danger');
+    // Messages d'erreur plus précis
+    let errorMessage = `Erreur: ${error.message}`;
+    if (error.code === 'auth/wrong-password') {
+      errorMessage = 'Mot de passe incorrect';
+    } else if (error.code === 'auth/user-not-found') {
+      errorMessage = 'Aucun compte trouvé avec cet email';
+    } else if (error.code === 'auth/too-many-requests') {
+      errorMessage = 'Trop de tentatives de connexion. Réessayez plus tard';
+    }
+    
+    showMessage(errorMessage, 'danger');
   } finally {
     loading.value = false;
     action.value = '';

@@ -11,6 +11,7 @@ export type Signalement = {
   status: SignalementStatus;
   userId: string | null;
   userEmail: string | null;
+  photos?: string[]; // URLs ou base64 des photos
   createdAt: Date | null;
   updatedAt?: Date | null;
 };
