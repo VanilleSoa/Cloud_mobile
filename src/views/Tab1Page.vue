@@ -9,68 +9,190 @@
         <div class="map-hint">
           <ion-text>Appuyez sur la carte pour signaler un probleme.</ion-text>
         </div>
+        <!-- Bouton de test notification (debug) -->
+        <ion-button 
+          class="debug-notif-btn" 
+          size="small" 
+          color="danger"
+          @click="testNotification"
+        >
+          🔔 Test Notif
+        </ion-button>
       </div>
 
-      <ion-modal :is-open="isModalOpen" @didDismiss="closeModal">
-        <ion-header>
-          <ion-toolbar>
-            <ion-title>Nouveau signalement</ion-title>
+      <ion-modal :is-open="isModalOpen" @didDismiss="closeModal" class="signalement-modal">
+        <ion-header class="modal-header">
+          <ion-toolbar color="warning">
+            <ion-title class="modal-title">📋 Nouveau signalement</ion-title>
+            <ion-button slot="end" fill="clear" @click="closeModal" color="light">
+              <ion-icon name="close-outline" slot="icon-only"></ion-icon>
+            </ion-button>
           </ion-toolbar>
         </ion-header>
-        <ion-content class="ion-padding">
-          <ion-item>
-            <ion-label position="stacked">Titre</ion-label>
-            <ion-input v-model="form.title" placeholder="Nid de poule, route abimee..." />
-          </ion-item>
+        <ion-content class="modal-content">
+          <div class="form-container">
+            <!-- Section: Informations principales -->
+            <div class="form-section">
+              <h3 class="section-title">📝 Informations</h3>
+              
+              <ion-item class="form-item title-select-item" lines="none" button @click="openTypeSelector">
+                <ion-label position="stacked" class="form-label">Titre du signalement *</ion-label>
+                <div class="custom-select-display">
+                  <span :class="form.title ? 'select-value' : 'select-placeholder'">
+                    {{ form.title || 'Sélectionnez un type de signalement' }}
+                  </span>
+                  <ion-icon name="chevron-down-outline" class="select-arrow"></ion-icon>
+                </div>
+              </ion-item>
 
-          <ion-item>
-            <ion-label position="stacked">Description</ion-label>
-            <ion-textarea
-              v-model="form.description"
-              auto-grow
-              placeholder="Decrivez le probleme"
-            />
-          </ion-item>
+              <ion-item class="form-item" lines="none">
+                <ion-label position="stacked" class="form-label">Description *</ion-label>
+                <ion-textarea
+                  v-model="form.description"
+                  auto-grow
+                  :rows="4"
+                  placeholder="Décrivez le problème en détail..."
+                  class="form-textarea"
+                />
+              </ion-item>
+            </div>
 
-          <ion-item>
-            <ion-label position="stacked">Latitude</ion-label>
-            <ion-input v-model="form.latitude" inputmode="decimal" />
-          </ion-item>
+            <!-- Section: Photos -->
+            <div class="form-section">
+              <h3 class="section-title">📸 Photos</h3>
+              
+              <div class="photo-buttons">
+                <ion-button 
+                  expand="block" 
+                  fill="outline" 
+                  color="warning"
+                  @click="handleSelectPhotos"
+                  :disabled="photoComposable.isProcessing.value"
+                  class="photo-button"
+                >
+                  <ion-icon slot="start" name="images-outline"></ion-icon>
+                  Galerie
+                </ion-button>
+                
+                <ion-button 
+                  expand="block" 
+                  fill="outline" 
+                  color="warning"
+                  @click="handleTakePhoto"
+                  :disabled="photoComposable.isProcessing.value"
+                  class="photo-button"
+                >
+                  <ion-icon slot="start" name="camera-outline"></ion-icon>
+                  Appareil photo
+                </ion-button>
+              </div>
 
-          <ion-item>
-            <ion-label position="stacked">Longitude</ion-label>
-            <ion-input v-model="form.longitude" inputmode="decimal" />
-          </ion-item>
+              <!-- Prévisualisation des photos -->
+              <div v-if="photoComposable.photos.value.length > 0" class="photo-preview-container">
+                <div class="photo-preview-header">
+                  <span class="photo-count">{{ photoComposable.photos.value.length }} photo(s) sélectionnée(s)</span>
+                  <ion-button 
+                    size="small" 
+                    fill="clear" 
+                    color="danger"
+                    @click="photoComposable.clearPhotos()"
+                  >
+                    Tout supprimer
+                  </ion-button>
+                </div>
+                
+                <div class="photo-grid">
+                  <div 
+                    v-for="photo in photoComposable.photos.value" 
+                    :key="photo.id" 
+                    class="photo-item"
+                  >
+                    <img :src="photo.webPath" alt="Photo" class="photo-thumbnail" />
+                    <ion-button 
+                      fill="solid" 
+                      color="danger" 
+                      size="small"
+                      class="photo-delete-btn"
+                      @click="photoComposable.removePhoto(photo.id)"
+                    >
+                      <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+                    </ion-button>
+                    <div v-if="photo.compressed" class="photo-badge">Compressée</div>
+                  </div>
+                </div>
+              </div>
 
-          <div class="button-row">
-            <ion-button
-              expand="block"
-              color="medium"
-              @click="fillLocation"
-              :disabled="locating"
-            >
-              <ion-spinner v-if="locating" name="crescent" />
-              <span v-else>Utiliser ma position</span>
-            </ion-button>
-          </div>
+              <div v-if="photoComposable.isProcessing.value" class="processing-indicator">
+                <ion-spinner name="crescent" color="warning"></ion-spinner>
+                <span>Traitement de l'image...</span>
+              </div>
+            </div>
 
-          <div class="button-row">
-            <ion-button expand="block" @click="submit" :disabled="loading">
-              <ion-spinner v-if="loading" name="crescent" />
-              <span v-else>Envoyer le signalement</span>
-            </ion-button>
-          </div>
+            <!-- Section: Localisation -->
+            <div class="form-section">
+              <h3 class="section-title">📍 Localisation</h3>
+              
+              <div class="location-row">
+                <ion-item class="form-item location-input" lines="none">
+                  <ion-label position="stacked" class="form-label">Latitude</ion-label>
+                  <ion-input 
+                    v-model="form.latitude" 
+                    inputmode="decimal" 
+                    readonly
+                    class="form-input"
+                  />
+                </ion-item>
 
-          <div v-if="message" class="message" :class="messageType">
-            <ion-text :color="messageType" style="white-space: pre-wrap; word-break: break-word;">{{ message }}</ion-text>
-          </div>
-          
-          <div class="debug-info" style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 12px;">
-            <ion-text color="medium">
-              <strong>Debug:</strong><br/>
-              API: {{ apiUrlDebug }}<br/>
-              User: {{ auth.currentUser?.email || 'Non connecté' }}
-            </ion-text>
+                <ion-item class="form-item location-input" lines="none">
+                  <ion-label position="stacked" class="form-label">Longitude</ion-label>
+                  <ion-input 
+                    v-model="form.longitude" 
+                    inputmode="decimal" 
+                    readonly
+                    class="form-input"
+                  />
+                </ion-item>
+              </div>
+
+              <ion-button
+                expand="block"
+                fill="outline"
+                color="warning"
+                @click="fillLocation"
+                :disabled="locating"
+                class="location-button"
+              >
+                <ion-icon slot="start" name="locate-outline"></ion-icon>
+                <ion-spinner v-if="locating" name="crescent" />
+                <span v-else>Utiliser ma position GPS</span>
+              </ion-button>
+            </div>
+
+            <!-- Messages -->
+            <div v-if="message" class="alert-message" :class="'alert-' + messageType">
+              <ion-icon 
+                :name="messageType === 'success' ? 'checkmark-circle' : 'alert-circle'" 
+                class="alert-icon"
+              ></ion-icon>
+              <ion-text class="alert-text">{{ message }}</ion-text>
+            </div>
+
+            <!-- Bouton d'envoi -->
+            <div class="submit-section">
+              <ion-button
+                expand="block"
+                color="warning"
+                @click="submit"
+                :disabled="loading"
+                class="submit-button"
+              >
+                <ion-icon slot="start" name="send-outline"></ion-icon>
+                <ion-spinner v-if="loading" name="crescent" />
+                <span v-else>Envoyer le signalement</span>
+              </ion-button>
+              
+              <p class="form-hint">* Champs obligatoires</p>
+            </div>
           </div>
         </ion-content>
       </ion-modal>
@@ -114,7 +236,37 @@ import {
   IonNote,
   IonSelect,
   IonSelectOption,
+  IonIcon,
+  actionSheetController,
+  toastController,
+  onIonViewWillEnter,
 } from "@ionic/vue";
+import { addIcons } from "ionicons";
+import {
+  closeOutline,
+  imagesOutline,
+  cameraOutline,
+  locateOutline,
+  sendOutline,
+  alertCircle,
+  checkmarkCircle,
+  trashOutline,
+  chevronDownOutline,
+} from "ionicons/icons";
+
+// Enregistrer les icônes utilisées dans le template
+addIcons({
+  "close-outline": closeOutline,
+  "images-outline": imagesOutline,
+  "camera-outline": cameraOutline,
+  "locate-outline": locateOutline,
+  "send-outline": sendOutline,
+  "alert-circle": alertCircle,
+  "checkmark-circle": checkmarkCircle,
+  "trash-outline": trashOutline,
+  "chevron-down-outline": chevronDownOutline,
+});
+
 import AppHeader from "@/components/AppHeader.vue";
 import AppFooter from "@/components/AppFooter.vue";
 import L from "leaflet";
@@ -138,12 +290,22 @@ import {
 } from "@/services/signalement";
 import type { SignalementFormInput } from "@/services/signalement";
 import type { SignalementRecord, SignalementStatus } from "@/types/signalement";
+import { useSignalementPhotos } from "@/composables/useSignalementPhotos";
+import { fetchTypesSignalement, type TypeSignalement } from "@/services/typeSignalement";
+import { showStatusChangeNotification, initNotifications, checkNotificationPermission } from "@/services/notifications";
+import { Capacitor } from '@capacitor/core';
 
 const route = useRoute();
 const mapElement = ref<HTMLElement | null>(null);
 const isModalOpen = ref(false);
 const viewMode = ref<"map" | "mine">("map");
 const statusFilter = ref<SignalementStatus | "all" | "mine">("all");
+
+// Gestion des photos
+const photoComposable = useSignalementPhotos();
+
+// Types de signalement
+const typesSignalement = ref<TypeSignalement[]>([]);
 
 // Debug: Afficher l'URL de l'API configurée
 const apiUrlDebug = import.meta.env.VITE_API_URL || 'http://localhost:3000 (défaut)';
@@ -198,6 +360,29 @@ const filteredAllSignalements = computed(() => {
 
 const closeModal = () => {
   isModalOpen.value = false;
+  photoComposable.clearPhotos(); // Nettoyer les photos à la fermeture
+};
+
+const handleSelectPhotos = async () => {
+  try {
+    await photoComposable.selectPhotos();
+  } catch (error: any) {
+    if (error.message && !error.message.includes('cancelled')) {
+      message.value = "Erreur lors de la sélection de photos";
+      messageType.value = "danger";
+    }
+  }
+};
+
+const handleTakePhoto = async () => {
+  try {
+    await photoComposable.takePhoto();
+  } catch (error: any) {
+    if (error.message && !error.message.includes('cancelled')) {
+      message.value = "Erreur lors de la prise de photo";
+      messageType.value = "danger";
+    }
+  }
 };
 
 const handleFilterChange = (filter: SignalementStatus | 'all' | 'mine') => {
@@ -212,9 +397,106 @@ const refreshAllSignalements = async () => {
   refreshSignalementMarkers();
 };
 
+// ===== FONCTION DE TEST NOTIFICATION =====
+const testNotification = async () => {
+  const isNative = Capacitor.isNativePlatform();
+  
+  // Afficher un toast pour montrer l'état
+  const toast1 = await toastController.create({
+    message: `📱 Plateforme: ${isNative ? 'Native (Android/iOS)' : 'Web'}`,
+    duration: 2000,
+    position: 'top',
+    color: isNative ? 'success' : 'warning'
+  });
+  await toast1.present();
+  
+  if (!isNative) {
+    const toast2 = await toastController.create({
+      message: '⚠️ Notifications natives uniquement sur mobile !',
+      duration: 3000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast2.present();
+    return;
+  }
+  
+  try {
+    // Initialiser les notifications
+    await initNotifications();
+    
+    // Vérifier la permission
+    const hasPermission = await checkNotificationPermission();
+    
+    const toast3 = await toastController.create({
+      message: hasPermission ? '✅ Permission accordée' : '❌ Permission refusée',
+      duration: 2000,
+      position: 'top',
+      color: hasPermission ? 'success' : 'danger'
+    });
+    await toast3.present();
+    
+    if (!hasPermission) {
+      return;
+    }
+    
+    // Envoyer une notification test
+    await showStatusChangeNotification(
+      'Test Signalement',
+      'nouveau',
+      'en_cours',
+      'test-123',
+      48.8566, // Paris latitude
+      2.3522   // Paris longitude
+    );
+    
+    const toast4 = await toastController.create({
+      message: '🔔 Notification envoyée ! Vérifiez votre barre de notifications.',
+      duration: 3000,
+      position: 'bottom',
+      color: 'success'
+    });
+    await toast4.present();
+    
+  } catch (error: any) {
+    const toast5 = await toastController.create({
+      message: `❌ Erreur: ${error.message || error}`,
+      duration: 4000,
+      position: 'bottom',
+      color: 'danger'
+    });
+    await toast5.present();
+  }
+};
+// ===== FIN TEST NOTIFICATION =====
+
 const renderError = (text: string) => {
   message.value = text;
   messageType.value = "danger";
+};
+
+const openTypeSelector = async () => {
+  const buttons = typesSignalement.value.map((type) => ({
+    text: type.libelle,
+    cssClass: form.value.title === type.libelle ? 'action-sheet-selected' : '',
+    handler: () => {
+      form.value.title = type.libelle;
+      console.log('[Tab1Page] Sélection type:', type.libelle);
+    },
+  }));
+
+  buttons.push({
+    text: 'Annuler',
+    cssClass: 'action-sheet-cancel',
+    handler: () => {},
+  });
+
+  const actionSheet = await actionSheetController.create({
+    header: 'Type de signalement',
+    buttons,
+  });
+
+  await actionSheet.present();
 };
 
 const resetForm = () => {
@@ -226,6 +508,7 @@ const resetForm = () => {
     latitude: "",
     longitude: "",
   };
+  photoComposable.clearPhotos(); // Réinitialiser les photos
 };
 
 const submit = async () => {
@@ -234,7 +517,14 @@ const submit = async () => {
     messageType.value = "danger";
     return;
   }
-  const payload = prepareSignalementPayload(form.value);
+  
+  // Préparer le formulaire avec les URLs Cloudinary des photos
+  const formWithPhotos = {
+    ...form.value,
+    photos: photoComposable.getPhotosUrls(),
+  };
+  
+  const payload = prepareSignalementPayload(formWithPhotos);
   if (!payload.title || !payload.description) {
     message.value = "Titre et description sont obligatoires.";
     messageType.value = "danger";
@@ -252,7 +542,8 @@ const submit = async () => {
 
   try {
     await submitSignalement(payload);
-    message.value = "Signalement envoye avec succes.";
+    const photoCount = photoComposable.photos.value.length;
+    message.value = `Signalement envoye avec succes${photoCount > 0 ? ` avec ${photoCount} photo(s)` : ''}.`;
     messageType.value = "success";
     resetForm();
     if (auth.currentUser) {
@@ -260,7 +551,9 @@ const submit = async () => {
     }
     await loadAllSignalements();
     refreshSignalementMarkers();
-    closeModal();
+    setTimeout(() => {
+      closeModal();
+    }, 1500);
   } catch (error: any) {
     message.value = `Erreur: ${error?.message ?? "envoi impossible"}`;
     messageType.value = "danger";
@@ -311,6 +604,16 @@ const loadAllSignalements = async () => {
   }
 };
 
+const loadTypesSignalement = async () => {
+  try {
+    typesSignalement.value = await fetchTypesSignalement();
+    console.log('[Tab1Page] Types de signalement chargés:', typesSignalement.value);
+  } catch (error: any) {
+    console.error("Erreur chargement types:", error);
+    // On ne bloque pas l'utilisateur si les types ne se chargent pas
+  }
+};
+
 const updateMarker = (latitude: number, longitude: number) => {
   if (!mapInstance) {
     return;
@@ -319,6 +622,113 @@ const updateMarker = (latitude: number, longitude: number) => {
     marker.setLatLng([latitude, longitude]);
   } else {
     marker = L.marker([latitude, longitude]).addTo(mapInstance);
+  }
+};
+
+// Icônes SVG pour chaque type de signalement (correspondant à l'image de référence)
+const markerIcons: Record<string, string> = {
+  // En construction - bandes jaune/noir
+  construction: `<rect x="4" y="8" width="16" height="3" fill="#000" /><rect x="4" y="13" width="16" height="3" fill="#000" />`,
+  // Accident - point d'exclamation rouge
+  accident: `<circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">!</text>`,
+  // Nid de poule - demi-cercle noir
+  niddepoule: `<ellipse cx="12" cy="14" rx="8" ry="5" fill="white"/><path d="M4 14 Q12 22 20 14" fill="#333"/>`,
+  // Réparé - checkmark vert
+  repare: `<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="white"/>`,
+  // Abimé - carré brisé
+  abime: `<rect x="5" y="5" width="14" height="14" fill="none" stroke="white" stroke-width="2.5" stroke-dasharray="3,2"/><path d="M5 5 L19 19 M19 5 L5 19" stroke="white" stroke-width="2"/>`,
+  // Alerte - flamme
+  alerte: `<path d="M12 2C9 6 7 9 7 12c0 2.8 2.2 5 5 5s5-2.2 5-5c0-3-2-6-5-10zm0 13c-1.1 0-2-.9-2-2 0-1 .5-2 2-4 1.5 2 2 3 2 4 0 1.1-.9 2-2 2z" fill="white"/>`,
+  // Zone rouge - cercle rouge vide
+  zonerouge: `<circle cx="12" cy="12" r="8" fill="none" stroke="white" stroke-width="3"/>`,
+  // Fuite/Eau - goutte d'eau
+  eau: `<path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z" fill="white"/>`,
+  // EFT - point d'interrogation
+  eft: `<text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">?</text>`,
+  // Électricité - éclair
+  electricite: `<path d="M7 2v11h3v9l7-12h-4l4-8z" fill="white"/>`,
+  // Déchet - poubelle  
+  dechet: `<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="white"/>`,
+  // EFT - point d'interrogation
+  eft: `<text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">?</text>`,
+  // Autre - cercle avec point
+  autre: `<circle cx="12" cy="12" r="8" fill="none" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="white"/>`,
+};
+
+// Fonction pour créer des icônes de marker personnalisées avec icône
+const createCustomIcon = (color: string, iconType: string) => {
+  const iconPath = markerIcons[iconType] || markerIcons.autre;
+  
+  const svgIcon = `
+    <svg width="36" height="48" viewBox="0 0 36 48" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+        </filter>
+      </defs>
+      <path d="M18 0C8.1 0 0 8.1 0 18c0 12.7 18 30 18 30s18-17.3 18-30c0-9.9-8.1-18-18-18z" fill="${color}" filter="url(#shadow)"/>
+      <g transform="translate(6, 6) scale(1)">
+        ${iconPath}
+      </g>
+    </svg>
+  `;
+  
+  return L.divIcon({
+    html: svgIcon,
+    className: 'custom-marker',
+    iconSize: [36, 48],
+    iconAnchor: [18, 48],
+    popupAnchor: [0, -48]
+  });
+};
+
+// Fonction pour obtenir la couleur et l'icône selon le type de signalement
+const getMarkerStyle = (title: string): { color: string; icon: string; label: string } => {
+  const titleLower = title.toLowerCase();
+  
+  // En construction - jaune avec bandes
+  if (titleLower.includes('construction') || titleLower.includes('travaux') || titleLower.includes('chantier')) {
+    return { color: '#FFC107', icon: 'construction', label: 'En construction' };
+  }
+  // Accident - rouge avec !
+  else if (titleLower.includes('accident') || titleLower.includes('collision')) {
+    return { color: '#F44336', icon: 'accident', label: 'Accident' };
+  }
+  // Nid de poule - gris/noir
+  else if (titleLower.includes('nid de poule') || titleLower.includes('trou') || titleLower.includes('chaussée')) {
+    return { color: '#607D8B', icon: 'niddepoule', label: 'Nid de poule' };
+  }
+  // Réparé - vert avec checkmark
+  else if (titleLower.includes('réparé') || titleLower.includes('repare') || titleLower.includes('terminé') || titleLower.includes('résolu')) {
+    return { color: '#4CAF50', icon: 'repare', label: 'Réparé' };
+  }
+  // Abimé - orange avec triangle
+  else if (titleLower.includes('abimé') || titleLower.includes('abime') || titleLower.includes('dégradé') || titleLower.includes('cassé')) {
+    return { color: '#FF9800', icon: 'abime', label: 'Abimé' };
+  }
+  // Alerte - orange/rouge avec flamme
+  else if (titleLower.includes('alerte') || titleLower.includes('urgence') || titleLower.includes('feu') || titleLower.includes('incendie')) {
+    return { color: '#FF5722', icon: 'alerte', label: 'Alerte' };
+  }
+  // Zone rouge - rouge avec cercle
+  else if (titleLower.includes('zone rouge') || titleLower.includes('danger') || titleLower.includes('interdit')) {
+    return { color: '#E91E63', icon: 'zonerouge', label: 'Zone rouge' };
+  }
+  // Fuite/Eau - bleu avec goutte
+  else if (titleLower.includes('eau') || titleLower.includes('fuite') || titleLower.includes('inondation') || titleLower.includes('canalisation')) {
+    return { color: '#2196F3', icon: 'eau', label: 'Fuite / Eau' };
+  }
+  // EFT - bleu clair avec ?
+  else if (titleLower.includes('eft') || titleLower.includes('électricité') || titleLower.includes('electricité') || titleLower.includes('éclairage') || titleLower.includes('lampadaire')) {
+    return { color: '#03A9F4', icon: 'eft', label: 'EFT' };
+  }
+  // Déchet
+  else if (titleLower.includes('déchet') || titleLower.includes('ordure') || titleLower.includes('poubelle')) {
+    return { color: '#8BC34A', icon: 'dechet', label: 'Déchet' };
+  }
+  // Autre - gris avec ?
+  else {
+    return { color: '#9E9E9E', icon: 'autre', label: 'Autre' };
   }
 };
 
@@ -338,17 +748,81 @@ const refreshSignalementMarkers = () => {
       return;
     }
 
-    const popup = `
-      <strong>${item.title}</strong><br/>
-      ${item.description}<br/>
-      Statut: ${item.status}<br/>
-      ${item.surfaceM2 ? `Surface: ${item.surfaceM2} m2<br/>` : ""}
-      ${item.budget ? `Budget: ${item.budget} MGA<br/>` : ""}
-    `;
+    // Obtenir le style (couleur + icône) selon le type de signalement
+    const markerStyle = getMarkerStyle(item.title);
+    
+    // Badge de statut avec couleur
+    const getStatusBadge = (status: string) => {
+      const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+        'nouveau': { bg: '#FFF3CD', text: '#856404', label: '🆕 Nouveau' },
+        'en_cours': { bg: '#CCE5FF', text: '#004085', label: '🔄 En cours' },
+        'termine': { bg: '#D4EDDA', text: '#155724', label: '✅ Terminé' },
+      };
+      const style = statusColors[status] || { bg: '#E2E3E5', text: '#383D41', label: status };
+      return `<span style="display: inline-block; padding: 4px 10px; border-radius: 12px; background: ${style.bg}; color: ${style.text}; font-size: 12px; font-weight: 600;">${style.label}</span>`;
+    };
 
-    L.marker([item.latitude, item.longitude])
-      .bindPopup(popup)
+    // Construire le popup amélioré
+    let popupContent = `
+      <div style="min-width: 220px; max-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    `;
+    
+    // Photos en haut
+    if (item.photos && item.photos.length > 0) {
+      popupContent += `<div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center;">`;
+      item.photos.forEach((photoUrl: string) => {
+        popupContent += `<img src="${photoUrl}" style="width: 70px; height: 70px; border-radius: 8px; object-fit: cover; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15);" onclick="window.open('${photoUrl}', '_blank')" />`;
+      });
+      popupContent += `</div>`;
+    }
+    
+    // Titre avec barre colorée
+    popupContent += `
+      <div style="border-left: 4px solid ${markerStyle.color}; padding-left: 10px; margin-bottom: 10px;">
+        <div style="font-size: 15px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">${item.title}</div>
+        <div style="font-size: 13px; color: #666; line-height: 1.4;">${item.description || 'Pas de description'}</div>
+      </div>
+    `;
+    
+    // Statut
+    popupContent += `<div style="margin-bottom: 10px;">${getStatusBadge(item.status)}</div>`;
+    
+    // Détails (surface et budget)
+    if (item.surfaceM2 || item.budget) {
+      popupContent += `<div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;">`;
+      if (item.surfaceM2) {
+        popupContent += `<div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #555;">
+          <span style="font-size: 14px;">📐</span>
+          <span>${item.surfaceM2} m²</span>
+        </div>`;
+      }
+      if (item.budget) {
+        popupContent += `<div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #555;">
+          <span style="font-size: 14px;">💰</span>
+          <span>${new Intl.NumberFormat('fr-FR').format(item.budget)} MGA</span>
+        </div>`;
+      }
+      popupContent += `</div>`;
+    }
+    
+    // Date de création
+    if (item.createdAt) {
+      const dateStr = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt);
+      popupContent += `<div style="font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 8px; margin-top: 4px;">
+        📅 Créé le ${dateStr}
+      </div>`;
+    }
+    
+    popupContent += `</div>`;
+
+    const customIcon = createCustomIcon(markerStyle.color, markerStyle.icon);
+
+    const marker = L.marker([item.latitude, item.longitude], { icon: customIcon })
+      .bindPopup(popupContent, { maxWidth: 300, className: 'custom-popup' })
       .addTo(signalementLayer as L.LayerGroup);
+    
+    // Stocker l'ID du signalement sur le marker pour pouvoir le retrouver
+    (marker as any).signalementId = item.id;
   });
 };
 
@@ -406,6 +880,9 @@ onMounted(() => {
     return;
   }
 
+  // Charger les types de signalement
+  loadTypesSignalement();
+
   mapInstance = L.map(mapElement.value).setView([-18.8792, 47.5079], 15);
   try {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -427,7 +904,8 @@ onMounted(() => {
   loadAllSignalements().then(() => {
     refreshSignalementMarkers();
     
-    // Vérifier si on a des paramètres de navigation (lat, lng, zoom)
+    // Vérifier si on a des paramètres de navigation (id, lat, lng, zoom)
+    const signalementId = route.query.id as string;
     const lat = route.query.lat as string;
     const lng = route.query.lng as string;
     const zoom = route.query.zoom as string;
@@ -441,21 +919,17 @@ onMounted(() => {
         // Centrer la carte sur le signalement
         mapInstance.setView([latitude, longitude], zoomLevel);
         
-        // Ajouter un marqueur temporaire pour mettre en évidence
-        const highlightMarker = L.marker([latitude, longitude], {
-          icon: L.icon({
-            iconUrl: markerIcon,
-            iconRetinaUrl: markerIcon2x,
-            shadowUrl: markerShadow,
-            iconSize: [35, 51],
-            iconAnchor: [17, 51],
-          })
-        }).addTo(mapInstance);
-        
-        // Ouvrir le popup du marqueur s'il existe
-        setTimeout(() => {
-          highlightMarker.openPopup();
-        }, 500);
+        // Trouver et ouvrir le popup du signalement correspondant
+        if (signalementId && signalementLayer) {
+          setTimeout(() => {
+            signalementLayer!.eachLayer((layer: any) => {
+              if (layer.signalementId == signalementId || String(layer.signalementId) === String(signalementId)) {
+                console.log('[Tab1Page] Ouverture du popup pour signalement:', signalementId);
+                layer.openPopup();
+              }
+            });
+          }, 500);
+        }
       }
     }
   });
@@ -488,8 +962,72 @@ watch(
   { immediate: false }
 );
 
+watch(
+  () => form.value.title,
+  (newTitle) => {
+    console.log('[Tab1Page] form.title mis à jour:', newTitle);
+  }
+);
+
 watch([mySignalements, allSignalements, statusFilter], () => {
   refreshSignalementMarkers();
+});
+
+// Fonction pour centrer sur un signalement et ouvrir son popup
+const focusOnSignalement = (signalementId: string, lat: number, lng: number, zoom: number = 18) => {
+  if (!mapInstance) return;
+  
+  // Centrer la carte
+  mapInstance.setView([lat, lng], zoom);
+  
+  // Ouvrir le popup du signalement
+  if (signalementLayer) {
+    setTimeout(() => {
+      signalementLayer!.eachLayer((layer: any) => {
+        if (String(layer.signalementId) === String(signalementId)) {
+          console.log('[Tab1Page] Focus sur signalement:', signalementId);
+          layer.openPopup();
+        }
+      });
+    }, 300);
+  }
+};
+
+// Gérer la navigation depuis la page de liste
+onIonViewWillEnter(() => {
+  const signalementId = route.query.id as string;
+  const lat = route.query.lat as string;
+  const lng = route.query.lng as string;
+  const zoom = route.query.zoom as string;
+  
+  if (signalementId && lat && lng) {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const zoomLevel = zoom ? parseInt(zoom) : 18;
+    
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+      console.log('[Tab1Page] Navigation depuis liste - signalement:', signalementId);
+      
+      // Si la carte est déjà initialisée, focus immédiatement
+      if (mapInstance && signalementLayer) {
+        focusOnSignalement(signalementId, latitude, longitude, zoomLevel);
+      } else {
+        // Sinon, attendre que la carte soit prête
+        const checkMap = setInterval(() => {
+          if (mapInstance && signalementLayer && allSignalements.value.length > 0) {
+            clearInterval(checkMap);
+            refreshSignalementMarkers();
+            setTimeout(() => {
+              focusOnSignalement(signalementId, latitude, longitude, zoomLevel);
+            }, 200);
+          }
+        }, 100);
+        
+        // Timeout de sécurité après 5 secondes
+        setTimeout(() => clearInterval(checkMap), 5000);
+      }
+    }
+  }
 });
 
 onBeforeUnmount(() => {
@@ -501,23 +1039,330 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.button-row {
-  margin-top: 14px;
+/* Custom Marker Styling */
+:global(.custom-marker) {
+  background: transparent !important;
+  border: none !important;
 }
 
-.message {
+/* Custom Popup Styling */
+:global(.custom-popup .leaflet-popup-content-wrapper) {
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 0;
+}
+
+:global(.custom-popup .leaflet-popup-content) {
+  margin: 12px;
+}
+
+:global(.custom-popup .leaflet-popup-tip) {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Modal Styling */
+.signalement-modal ion-modal {
+  --height: 90%;
+  --border-radius: 16px 16px 0 0;
+}
+
+.modal-header ion-toolbar {
+  --background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
+  --color: #000;
+}
+
+.modal-title {
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.modal-content {
+  --background: #fafafa;
+}
+
+.form-container {
+  padding: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Form Sections */
+.form-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.1);
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Form Items */
+.form-item {
+  --background: #f8f8f8;
+  --border-radius: 12px;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --padding-top: 8px;
+  --padding-bottom: 8px;
+  margin-bottom: 20px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.form-item:focus-within {
+  --background: #fff;
+  border-color: #ffc107;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.1);
+}
+
+.form-label {
+  color: #333 !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 8px !important;
+  transform: none !important;
+  position: relative !important;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+  --color: #000 !important;
+  --placeholder-color: #999 !important;
+  font-size: 1rem;
+}
+
+/* Custom type selector */
+.title-select-item {
+  cursor: pointer;
+}
+
+.custom-select-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 0;
+}
+
+.select-value {
+  color: #000;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.select-placeholder {
+  color: #666;
+  font-size: 1rem;
+}
+
+.select-arrow {
+  color: #ffc107;
+  font-size: 18px;
+  margin-left: 8px;
+}
+
+/* Style spécifique pour le select */
+ion-select {
+  --placeholder-color: #666 !important;
+  --placeholder-opacity: 1 !important;
+  color: #000 !important;
+  font-weight: 500;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+ion-select::part(text) {
+  color: #000 !important;
+  font-weight: 500;
+}
+
+ion-select::part(placeholder) {
+  color: #666 !important;
+  opacity: 1 !important;
+}
+
+ion-select::part(icon) {
+  color: #ffc107 !important;
+  opacity: 1;
+}
+
+/* Photo Section */
+.photo-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.photo-button {
+  --border-width: 2px;
+  --border-radius: 12px;
+  font-weight: 600;
+}
+
+.photo-preview-container {
   margin-top: 16px;
-  padding: 12px;
-  border-radius: 8px;
+}
+
+.photo-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.photo-count {
+  font-weight: 600;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.photo-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  --padding-start: 8px;
+  --padding-end: 8px;
+  height: 32px;
+  width: 32px;
+  margin: 0;
+}
+
+.photo-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(76, 175, 80, 0.9);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.processing-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 193, 7, 0.1);
+  border-radius: 12px;
+  margin-top: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Location Section */
+.location-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.location-input {
+  margin-bottom: 0;
+}
+
+.location-button {
+  --border-width: 2px;
+  --border-radius: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* Alert Messages */
+.alert-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.alert-success {
+  background: rgba(76, 175, 80, 0.1);
+  border: 2px solid rgba(76, 175, 80, 0.3);
+}
+
+.alert-danger {
+  background: rgba(244, 67, 54, 0.1);
+  border: 2px solid rgba(244, 67, 54, 0.3);
+}
+
+.alert-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.alert-success .alert-icon {
+  color: #4caf50;
+}
+
+.alert-danger .alert-icon {
+  color: #f44336;
+}
+
+.alert-text {
+  color: #333;
+  font-weight: 500;
+  flex: 1;
+}
+
+/* Submit Section */
+.submit-section {
+  margin-top: 24px;
+}
+
+.submit-button {
+  --border-radius: 12px;
+  --box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+  font-weight: 700;
+  font-size: 1rem;
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.form-hint {
   text-align: center;
-}
-
-.message.success {
-  background-color: rgba(16, 220, 96, 0.1);
-}
-
-.message.danger {
-  background-color: rgba(235, 68, 90, 0.1);
+  color: #999;
+  font-size: 0.85rem;
+  margin: 8px 0 0 0;
 }
 
 .content-with-footer {
@@ -552,6 +1397,15 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 6px 16px rgba(255, 193, 7, 0.15);
   color: var(--c-grey-700);
+}
+
+.debug-notif-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  --border-radius: 8px;
+  font-size: 12px;
 }
 
 .map-controls {
@@ -615,4 +1469,25 @@ ion-list {
 ion-button {
   --border-radius: 12px;
 }
+
+/* Styles pour l'action sheet */
+ion-action-sheet {
+  --button-color: #000 !important;
+  --button-color-selected: #ffc107 !important;
+  --background: #fff !important;
+}
+
+ion-action-sheet .action-sheet-button {
+  color: #000 !important;
+}
+
+ion-action-sheet .action-sheet-title {
+  color: #000 !important;
+}
+
+ion-select-popover ion-item {
+  --color: #000 !important;
+  --background: #fff !important;
+}
+
 </style>

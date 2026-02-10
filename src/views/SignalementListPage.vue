@@ -43,33 +43,54 @@
           <ion-item
             v-for="signalement in filteredSignalements"
             :key="signalement.id"
-            lines="full"
+            lines="none"
+            class="signalement-card"
           >
             <div class="signalement-content">
+              <!-- Icône de catégorie -->
+              <div class="category-icon" :style="{ backgroundColor: getMarkerStyle(signalement.title).color }">
+                <span v-html="getCategoryIcon(signalement.title)"></span>
+              </div>
+              
+              <!-- Photo du signalement -->
+              <div v-if="signalement.photos && signalement.photos.length > 0" class="signalement-photo">
+                <img :src="signalement.photos[0]" :alt="signalement.title" />
+                <div v-if="signalement.photos.length > 1" class="photo-count">
+                  +{{ signalement.photos.length - 1 }}
+                </div>
+              </div>
+              
               <div class="signalement-info">
-                <h3>{{ signalement.title }}</h3>
+                <div class="title-row">
+                  <h3>{{ signalement.title }}</h3>
+                  <span class="category-label" :style="{ color: getMarkerStyle(signalement.title).color }">{{ getMarkerStyle(signalement.title).label }}</span>
+                </div>
                 <p class="description">{{ signalement.description }}</p>
                 <div class="meta-info">
-                  <ion-badge :color="getStatusColor(signalement.status)">
-                    {{ signalement.status }}
-                  </ion-badge>
+                  <div class="status-badge" :class="'status-' + signalement.status">
+                    {{ getStatusLabel(signalement.status) }}
+                  </div>
                   <ion-text v-if="signalement.createdAt" color="medium" class="date">
-                    {{ formatDate(signalement.createdAt) }}
+                    📅 {{ formatDate(signalement.createdAt) }}
                   </ion-text>
                 </div>
                 <div v-if="signalement.surfaceM2 || signalement.budget" class="details">
-                  <ion-text v-if="signalement.surfaceM2" color="medium" class="detail-item">
-                    📏 {{ signalement.surfaceM2 }} m²
-                  </ion-text>
-                  <ion-text v-if="signalement.budget" color="medium" class="detail-item">
-                    💰 {{ signalement.budget }} MGA
-                  </ion-text>
+                  <span v-if="signalement.surfaceM2" class="detail-item">
+                    📐 {{ signalement.surfaceM2 }} m²
+                  </span>
+                  <span v-if="signalement.budget" class="detail-item">
+                    💰 {{ formatBudget(signalement.budget) }} MGA
+                  </span>
                 </div>
               </div>
+              
+              <!-- Bouton voir sur carte -->
               <ion-button
-                fill="clear"
+                fill="solid"
                 @click="viewOnMap(signalement)"
                 class="view-button"
+                title="Voir sur la carte"
+                color="warning"
               >
                 <ion-icon :icon="eyeOutline" slot="icon-only"></ion-icon>
               </ion-button>
@@ -86,6 +107,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { onIonViewWillEnter } from '@ionic/vue';
 import {
   IonPage,
   IonHeader,
@@ -151,10 +173,11 @@ const handleFilterChange = () => {
 };
 
 const viewOnMap = (signalement: SignalementRecord) => {
-  // Naviguer vers la carte avec les coordonnées du signalement
+  // Naviguer vers la carte avec les coordonnées et ID du signalement
   router.push({
     path: '/tabs/tab1',
     query: {
+      id: signalement.id,
       lat: signalement.latitude?.toString(),
       lng: signalement.longitude?.toString(),
       zoom: '18'
@@ -182,7 +205,88 @@ const getStatusColor = (status: SignalementStatus) => {
   }
 };
 
+const getStatusLabel = (status: SignalementStatus) => {
+  switch (status) {
+    case 'nouveau':
+      return '🆕 Nouveau';
+    case 'en_cours':
+      return '🔄 En cours';
+    case 'termine':
+      return '✅ Terminé';
+    default:
+      return status;
+  }
+};
+
+const formatBudget = (budget: number) => {
+  return new Intl.NumberFormat('fr-FR').format(budget);
+};
+
+// Fonction pour obtenir le style du marqueur (couleur + type + label)
+const getMarkerStyle = (title: string): { color: string; icon: string; label: string } => {
+  const titleLower = title.toLowerCase();
+  
+  if (titleLower.includes('construction') || titleLower.includes('travaux') || titleLower.includes('chantier')) {
+    return { color: '#FFC107', icon: 'construction', label: 'En construction' };
+  }
+  else if (titleLower.includes('accident') || titleLower.includes('collision')) {
+    return { color: '#F44336', icon: 'accident', label: 'Accident' };
+  }
+  else if (titleLower.includes('nid de poule') || titleLower.includes('trou') || titleLower.includes('chaussée')) {
+    return { color: '#607D8B', icon: 'niddepoule', label: 'Nid de poule' };
+  }
+  else if (titleLower.includes('réparé') || titleLower.includes('repare') || titleLower.includes('terminé') || titleLower.includes('résolu')) {
+    return { color: '#4CAF50', icon: 'repare', label: 'Réparé' };
+  }
+  else if (titleLower.includes('abimé') || titleLower.includes('abime') || titleLower.includes('dégradé') || titleLower.includes('cassé')) {
+    return { color: '#FF9800', icon: 'abime', label: 'Abimé' };
+  }
+  else if (titleLower.includes('alerte') || titleLower.includes('urgence') || titleLower.includes('feu') || titleLower.includes('incendie')) {
+    return { color: '#FF5722', icon: 'alerte', label: 'Alerte' };
+  }
+  else if (titleLower.includes('zone rouge') || titleLower.includes('danger') || titleLower.includes('interdit')) {
+    return { color: '#E91E63', icon: 'zonerouge', label: 'Zone rouge' };
+  }
+  else if (titleLower.includes('eau') || titleLower.includes('fuite') || titleLower.includes('inondation') || titleLower.includes('canalisation')) {
+    return { color: '#2196F3', icon: 'eau', label: 'Fuite / Eau' };
+  }
+  else if (titleLower.includes('eft') || titleLower.includes('électricité') || titleLower.includes('electricité') || titleLower.includes('éclairage') || titleLower.includes('lampadaire')) {
+    return { color: '#03A9F4', icon: 'eft', label: 'EFT' };
+  }
+  else if (titleLower.includes('déchet') || titleLower.includes('ordure') || titleLower.includes('poubelle')) {
+    return { color: '#8BC34A', icon: 'dechet', label: 'Déchet' };
+  }
+  else {
+    return { color: '#9E9E9E', icon: 'autre', label: 'Autre' };
+  }
+};
+
+// Fonction pour obtenir l'icône SVG de catégorie
+const getCategoryIcon = (title: string): string => {
+  const style = getMarkerStyle(title);
+  const icons: Record<string, string> = {
+    construction: '⚠️',
+    accident: '❗',
+    niddepoule: '⭕',
+    repare: '✅',
+    abime: '⚠️',
+    alerte: '🔥',
+    zonerouge: '🔴',
+    eau: '💧',
+    eft: '❓',
+    dechet: '🗑️',
+    autre: '❓',
+  };
+  return icons[style.icon] || '❓';
+};
+
 onMounted(() => {
+  loadSignalements();
+});
+
+// Rafraîchir la liste à chaque fois qu'on entre sur la page
+onIonViewWillEnter(() => {
+  console.log('[SignalementListPage] Rafraîchissement de la liste...');
   loadSignalements();
 });
 </script>
@@ -242,22 +346,64 @@ ion-list {
   padding: 0;
 }
 
-ion-item {
+.signalement-card {
   --background: white;
-  --border-radius: 12px;
-  --padding-start: 16px;
-  --padding-end: 16px;
-  margin-bottom: 12px;
-  border-radius: 12px;
+  --border-radius: 16px;
+  --padding-start: 0;
+  --padding-end: 0;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
 }
 
 .signalement-content {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   width: 100%;
   gap: 12px;
-  padding: 12px 0;
+  padding: 16px;
+}
+
+.category-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.signalement-photo {
+  position: relative;
+  flex-shrink: 0;
+  width: 70px;
+  height: 70px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.signalement-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-count {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
 }
 
 .signalement-info {
@@ -265,16 +411,31 @@ ion-item {
   min-width: 0;
 }
 
+.title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
 .signalement-info h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+
+.category-label {
+  font-size: 11px;
   font-weight: 600;
-  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .description {
-  margin: 0 0 8px 0;
-  font-size: 14px;
+  margin: 0 0 10px 0;
+  font-size: 13px;
   color: #666;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -282,27 +443,57 @@ ion-item {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-height: 1.4;
 }
 
 .meta-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-nouveau {
+  background: #FFF3CD;
+  color: #856404;
+}
+
+.status-en_cours {
+  background: #CCE5FF;
+  color: #004085;
+}
+
+.status-termine {
+  background: #D4EDDA;
+  color: #155724;
 }
 
 .date {
-  font-size: 12px;
+  font-size: 11px;
+  color: #888;
 }
 
 .details {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .detail-item {
   font-size: 12px;
+  color: #666;
+  background: #f5f5f5;
+  padding: 3px 8px;
+  border-radius: 6px;
 }
 
 ion-badge {
@@ -313,19 +504,17 @@ ion-badge {
 }
 
 .view-button {
-  --padding-start: 8px;
-  --padding-end: 8px;
-  --color: #FFC107;;
+  flex-shrink: 0;
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --padding-end: 12px;
   min-width: 48px;
   height: 48px;
+  margin-top: 8px;
 }
 
 .view-button ion-icon {
-  font-size: 24px;
-  color: #FFC107;
-}
-
-.view-button:hover {
-  --background: rgba(255, 193, 7, 0.431);
+  font-size: 22px;
+  color: white;
 }
 </style>
