@@ -361,19 +361,19 @@ ion-select {
 /* Action Sheet personnalisé */
 ion-action-sheet {
   --background: #ffffff;
-  --color: var(--c-grey-900);
+  --color: #000;
   --button-background: #ffffff;
-  --button-background-activated: var(--c-yellow-100);
-  --button-background-selected: var(--c-yellow-100);
-  --button-color: var(--c-grey-900);
+  --button-background-activated: rgba(255, 193, 7, 0.15);
+  --button-background-selected: rgba(255, 193, 7, 0.2);
+  --button-color: #000;
   --max-width: 90%;
   --backdrop-opacity: 0.4;
 }
 
 ion-action-sheet .action-sheet-title {
-  color: var(--c-grey-900);
-  font-weight: 600;
-  font-size: 1rem;
+  color: #000;
+  font-weight: 700;
+  font-size: 1.1rem;
   padding: 1.25rem 1rem 0.75rem;
 }
 
@@ -387,17 +387,18 @@ ion-action-sheet .action-sheet-group {
 ion-action-sheet .action-sheet-button {
   height: 56px;
   font-size: 1rem;
-  color: var(--c-grey-900);
+  color: #000;
+  font-weight: 500;
 }
 
 ion-action-sheet .action-sheet-button.action-sheet-selected {
-  background: var(--c-yellow-100);
-  color: var(--c-grey-900);
-  font-weight: 600;
+  background: var(--c-yellow-500);
+  color: #000;
+  font-weight: 700;
 }
 
 ion-action-sheet .action-sheet-button:hover {
-  background: var(--c-yellow-100);
+  background: rgba(255, 193, 7, 0.2);
 }
 
 ion-action-sheet .action-sheet-button.action-sheet-cancel {

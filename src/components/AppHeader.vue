@@ -48,19 +48,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-// ... autres imports ...
+import { ref, onMounted, onUnmounted } from 'vue';
+import { actionSheetController } from '@ionic/vue';
+import { auth } from '@/Firebase/FirebaseConfig';
+import { listenMySignalementsStatus } from '@/services/signalement';
+import { initNotifications, showStatusChangeNotification } from '@/services/notifications';
+import type { SignalementRecord } from '@/types/signalement';
 
-// ...existing code...
+const emit = defineEmits(['filter-change', 'refresh-signalements']);
 
-const lastSignalements = ref([]);
+const lastSignalements = ref<SignalementRecord[]>([]);
 
 function getSignalementTitle(id: string) {
   console.log('[DEBUG] getSignalementTitle called with id:', id);
   console.log('[DEBUG] lastSignalements.value:', lastSignalements.value);
   
   // Chercher par document ID (Firestore)
-  let found = lastSignalements.value.find((s: any) => s.id === id);
+  let found = lastSignalements.value.find((s: SignalementRecord) => s.id === id);
   if (!found) {
     // Chercher par champ ID numérique 
     found = lastSignalements.value.find((s: any) => s.id == id || s.numId == id);
@@ -69,12 +73,6 @@ function getSignalementTitle(id: string) {
   console.log('[DEBUG] found signalement:', found);
   return found ? found.title || 'Sans titre' : `Type inconnu (ID:${id})`;
 }
-import { actionSheetController } from '@ionic/vue';
-import { auth } from '@/Firebase/FirebaseConfig';
-import { listenMySignalementsStatus } from '@/services/signalement';
-
-import { ref, onMounted, onUnmounted } from 'vue';
-const emit = defineEmits(['filter-change', 'refresh-signalements']);
 
 const hasNotif = ref(false);
 const notifList = ref<Array<{id:string, oldStatus:string, newStatus:string}>>([]);
@@ -90,12 +88,15 @@ if (savedNotifs) {
   }
 }
 const showNotifModal = ref(false);
-let unsubscribe = null;
+let unsubscribe: (() => void) | null = null;
 
-onMounted(() => {
+onMounted(async () => {
+  // Initialiser les notifications natives
+  await initNotifications();
+  
   const user = auth.currentUser;
   if (user) {
-    unsubscribe = listenMySignalementsStatus(user.uid, (signalements, changes) => {
+    unsubscribe = listenMySignalementsStatus(user.uid, async (signalements, changes) => {
       lastSignalements.value = signalements;
       console.log('[DEBUG][listenMySignalementsStatus] signalements:', signalements);
       console.log('[DEBUG][listenMySignalementsStatus] changes:', changes);
@@ -105,6 +106,17 @@ onMounted(() => {
         localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifList.value));
         // Affiche la pastille même si la modal est ouverte
         hasNotif.value = true;
+        
+        // Envoyer des notifications natives sur le téléphone
+        for (const change of changes) {
+          const title = getSignalementTitle(change.id);
+          await showStatusChangeNotification(
+            change.id,
+            title,
+            change.oldStatus,
+            change.newStatus
+          );
+        }
       }
     });
   }
@@ -171,12 +183,23 @@ async function syncNotifications() {
   const user = auth.currentUser;
   if (!user) return;
   if (unsubscribe) unsubscribe();
-  unsubscribe = listenMySignalementsStatus(user.uid, (signalements, changes) => {
+  unsubscribe = listenMySignalementsStatus(user.uid, async (signalements, changes) => {
     lastSignalements.value = signalements;
     if (changes.length > 0) {
       notifList.value = [...notifList.value, ...changes];
       localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifList.value));
       hasNotif.value = true;
+      
+      // Envoyer des notifications natives sur le téléphone
+      for (const change of changes) {
+        const title = getSignalementTitle(change.id);
+        await showStatusChangeNotification(
+          change.id,
+          title,
+          change.oldStatus,
+          change.newStatus
+        );
+      }
     }
   });
   
