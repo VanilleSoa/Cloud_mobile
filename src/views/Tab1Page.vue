@@ -649,8 +649,6 @@ const markerIcons: Record<string, string> = {
   electricite: `<path d="M7 2v11h3v9l7-12h-4l4-8z" fill="white"/>`,
   // Déchet - poubelle  
   dechet: `<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="white"/>`,
-  // EFT - point d'interrogation
-  eft: `<text x="12" y="17" text-anchor="middle" fill="white" font-size="16" font-weight="bold">?</text>`,
   // Autre - cercle avec point
   autre: `<circle cx="12" cy="12" r="8" fill="none" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="white"/>`,
 };

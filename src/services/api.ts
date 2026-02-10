@@ -19,13 +19,48 @@ import { collection, query, where, getDocs, updateDoc, doc, getDoc } from 'fireb
 
 export async function logLoginAttempt(email: string, success: boolean): Promise<void> {
   try {
+    console.log(`\n[logLoginAttempt] ========== START ==========`);
+    console.log(`[logLoginAttempt] Email: ${email}`);
+    console.log(`[logLoginAttempt] Success: ${success}`);
+    
     // Vérifier d'abord si l'utilisateur est déjà bloqué dans Firestore
-    const userData = await getUserDataFromFirestore(email);
+    let userData = await getUserDataFromFirestore(email);
     
     if (!userData) {
-      console.warn(`User ${email} not found in Firestore`);
-      return;
+      console.warn(`[logLoginAttempt] ❌ User ${email} not found in Firestore - creating entry`);
+      
+      // CRÉER AUTOMATIQUEMENT L'UTILISATEUR
+      try {
+        const { addDoc, serverTimestamp } = await import('firebase/firestore');
+        const usersRef = collection(db, 'users');
+        
+        const activeStatusId = await getStatusIdByLabel('Actif');
+        
+        const newUserDoc = await addDoc(usersRef, {
+          email: email,
+          failed_login_attempts: success ? 0 : 1,
+          statuts_user_id: activeStatusId || 1, // 1 = Actif par défaut
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp()
+        });
+        
+        console.log(`[logLoginAttempt] ✅ Created user document with ID: ${newUserDoc.id}`);
+        console.log(`[logLoginAttempt] Initial failed_login_attempts: ${success ? 0 : 1}`);
+        console.log(`[logLoginAttempt] ========== END ==========\n`);
+        return;
+      } catch (createError) {
+        console.error(`[logLoginAttempt] ❌ Failed to create user document:`, createError);
+        console.log(`[logLoginAttempt] ========== END ==========\n`);
+        return;
+      }
     }
+    
+    console.log(`[logLoginAttempt] User data retrieved:`, {
+      id: userData.id,
+      email: userData.email,
+      failed_login_attempts: userData.failed_login_attempts,
+      statuts_user_id: userData.statuts_user_id
+    });
     
     // Si l'utilisateur est déjà marqué comme "Bloque" (statuts_user_id = 2)
     // ou si les tentatives ont dépassé la limite
@@ -33,16 +68,22 @@ export async function logLoginAttempt(email: string, success: boolean): Promise<
     const currentAttempts = userData.failed_login_attempts || 0;
     const isAlreadyBlocked = userData.statuts_user_id === 2 || currentAttempts >= maxAttempts;
     
+    console.log(`[logLoginAttempt] Max attempts: ${maxAttempts}`);
+    console.log(`[logLoginAttempt] Current attempts: ${currentAttempts}`);
+    console.log(`[logLoginAttempt] Already blocked: ${isAlreadyBlocked}`);
+    
     if (isAlreadyBlocked && !success) {
-      console.log(`🚫 User ${email} tried to login but account is already blocked`);
+      console.log(`[logLoginAttempt] 🚫 User ${email} tried to login but account is already blocked`);
+      console.log(`[logLoginAttempt] ========== END ==========\n`);
       return; // Ne pas incrémenter si déjà bloqué
     }
     
     const userRef = doc(db, 'users', userData.id);
+    console.log(`[logLoginAttempt] User doc reference:`, userRef.path);
     
     if (success) {
       // SUCCÈS : réinitialiser à 0 et mettre statut "Actif"
-      console.log(`✅ Login success for ${email} - resetting attempts`);
+      console.log(`[logLoginAttempt] ✅ Login success for ${email} - resetting attempts`);
       
       const activeStatusId = await getStatusIdByLabel('Actif');
       
@@ -55,66 +96,99 @@ export async function logLoginAttempt(email: string, success: boolean): Promise<
         updates.statuts_user_id = activeStatusId;
       }
       
+      console.log(`[logLoginAttempt] Updates to apply:`, updates);
       await updateDoc(userRef, updates);
-      console.log(`✅ ${email} attempts reset to 0, status set to "Actif"`);
+      console.log(`[logLoginAttempt] ✅ ${email} attempts reset to 0, status set to "Actif"`);
       
     } else {
       // ÉCHEC : incrémenter les tentatives
       const newValue = currentAttempts + 1;
       
-      console.log(`❌ Login failed: ${email} = ${currentAttempts} → ${newValue}`);
+      console.log(`[logLoginAttempt] ❌ Login failed: ${email} = ${currentAttempts} → ${newValue}`);
       
       const updates: any = {
         failed_login_attempts: newValue,
         updated_at: new Date()
       };
       
+      console.log(`[logLoginAttempt] Updates before blocking check:`, updates);
+      
       // Vérifier si le nombre max d'erreurs est atteint
       if (newValue >= maxAttempts) {
-        console.log(`⚠️ Max attempts reached for ${email} (${newValue}/${maxAttempts})`);
+        console.log(`[logLoginAttempt] ⚠️ Max attempts reached for ${email} (${newValue}/${maxAttempts})`);
         
         const blockedStatusId = await getStatusIdByLabel('Bloque');
+        console.log(`[logLoginAttempt] Blocked status ID:`, blockedStatusId);
         
         if (blockedStatusId) {
           updates.statuts_user_id = blockedStatusId;
           updates.blocked_at = new Date();
-          console.log(`🚫 Account ${email} is now BLOCKED (status ID: ${blockedStatusId})`);
+          console.log(`[logLoginAttempt] 🚫 Account ${email} is now BLOCKED (status ID: ${blockedStatusId})`);
           
           // IMPORTANT: Appeler le backend pour désactiver l'utilisateur dans Firebase
           try {
             await disableFirebaseUser(email);
           } catch (fbError) {
-            console.error('Failed to disable Firebase user:', fbError);
+            console.error('[logLoginAttempt] Failed to disable Firebase user:', fbError);
           }
         }
       }
       
+      console.log(`[logLoginAttempt] Final updates to apply:`, updates);
+      console.log(`[logLoginAttempt] Calling updateDoc...`);
+      
       await updateDoc(userRef, updates);
+      
+      console.log(`[logLoginAttempt] ✅ updateDoc completed successfully`);
     }
     
+    console.log(`[logLoginAttempt] ========== END ==========\n`);
+    
   } catch (error) {
-    console.error('Error logging login attempt:', error);
+    console.error('[logLoginAttempt] ❌ ERROR:', error);
+    console.error('[logLoginAttempt] Error details:', {
+      name: (error as Error).name,
+      message: (error as Error).message,
+      stack: (error as Error).stack
+    });
+    console.log(`[logLoginAttempt] ========== END ==========\n`);
   }
 }
 
 // Fonction pour récupérer les données utilisateur de Firestore
 async function getUserDataFromFirestore(email: string): Promise<any> {
   try {
+    console.log(`[getUserDataFromFirestore] Looking for user with email: ${email}`);
+    
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', email));
+    
+    console.log(`[getUserDataFromFirestore] Executing query...`);
     const snapshot = await getDocs(q);
     
+    console.log(`[getUserDataFromFirestore] Query returned ${snapshot.size} documents`);
+    
     if (snapshot.empty) {
+      console.warn(`[getUserDataFromFirestore] No user found with email: ${email}`);
       return null;
     }
     
     const userDoc = snapshot.docs[0];
-    return {
+    const userData = {
       id: userDoc.id,
       ...userDoc.data()
     };
+    
+    console.log(`[getUserDataFromFirestore] User found:`, {
+      id: userData.id,
+      email: (userData as any).email,
+      has_failed_login_attempts: 'failed_login_attempts' in userData,
+      failed_login_attempts_value: (userData as any).failed_login_attempts
+    });
+    
+    return userData;
   } catch (error) {
-    console.error('Error getting user data from Firestore:', error);
+    console.error('[getUserDataFromFirestore] Error getting user data from Firestore:', error);
     return null;
   }
 }
@@ -197,27 +271,34 @@ async function getMaxLoginAttempts(): Promise<number> {
 // Fonction pour trouver l'ID d'un statut par son libellé
 async function getStatusIdByLabel(label: string): Promise<number | null> {
   try {
+    console.log(`[getStatusIdByLabel] Looking for status: "${label}"`);
+    
     const statusesRef = collection(db, 'statuts_user');
     const q = query(statusesRef, where('libelle', '==', label));
     const snapshot = await getDocs(q);
     
+    console.log(`[getStatusIdByLabel] Query returned ${snapshot.size} documents`);
+    
     if (snapshot.empty) {
-      console.warn(`Status "${label}" not found in statuts_user collection`);
+      console.warn(`[getStatusIdByLabel] Status "${label}" not found in statuts_user collection`);
       return null;
     }
     
     const statusData = snapshot.docs[0].data();
+    console.log(`[getStatusIdByLabel] Status data:`, statusData);
+    
     const statusId = statusData.id;
     
     if (typeof statusId !== 'number') {
-      console.warn(`Invalid status ID for "${label}":`, statusId);
+      console.warn(`[getStatusIdByLabel] Invalid status ID for "${label}":`, statusId);
       return null;
     }
     
+    console.log(`[getStatusIdByLabel] Found status ID: ${statusId} for "${label}"`);
     return statusId;
     
   } catch (error) {
-    console.error(`Error getting status ID for "${label}":`, error);
+    console.error(`[getStatusIdByLabel] Error getting status ID for "${label}":`, error);
     return null;
   }
 }
